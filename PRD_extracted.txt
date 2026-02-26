@@ -1,0 +1,289 @@
+PRODUCT REQUIREMENTS DOCUMENT (PRD)
+1. Product Overview
+Product Name
+Saint Lucia School Learning Management System (Portfolio Project)
+Purpose
+Build a class-based Learning Management System (LMS) for a single school, supporting 9 homeroom classes (each of them 30 students) with structured role-based access control, assignments, grading, ranking, announcements, and attendance tracking.
+Tech Stack
+Frontend: React + Vite + TypeScript
+Backend/DB/Auth: Convex
+Data Fetching: React Query
+API Layer: Convex client (no axios required)
+File Storage: Convex file storage
+State Updates: Optimistic updates enabled
+Scope Constraints
+Single school (the school has 9 classes, 3 classes (A, B, and C) for each grade)
+Each class has its own management system
+30 students each class
+Academic portfolio-level production quality
+2. User Roles & Permissions (RBAC)
+Roles
+Super Admin
+Main Teacher (Homeroom Teacher)
+Specialized Subject Teacher
+Administrative Student
+Regular Student
+Role Capabilities Matrix
+Super Admin
+Approve registered users
+Assign users to class
+Assign teacher roles (main/specialized)
+Assign subject ownership to teachers
+View all data
+Main Teacher
+View all students
+Promote/demote administrative students
+View overall subject averages
+View ranking (overall + per subject)
+View attendance reports
+Create assignments (if subject owner)
+Comment & grade (if subject owner)
+Create/edit/delete announcements
+Specialized Subject Teacher
+Only access their own subject
+Create/edit/delete assignments (their subject only)
+Grade & comment (their subject only)
+View subject ranking (their subject only)
+View subject attendance
+Create/edit/delete announcements
+Administrative Student
+Regular student permissions
+Create/edit/delete their own announcements
+Regular Student
+View assignments
+Submit assignments
+View own grades
+View announcements
+View attendance record
+Cannot view rankings
+3. Core Features
+3.1 Authentication & Identity
+Supported Methods
+Email + Password
+OAuth
+Rules
+Self-registration enabled
+Users inactive until approved by Super Admin
+Persistent login across devices
+3.2 Class Structure
+One homeroom class
+Each student belongs to exactly one class
+Each subject has exactly one specialized teacher
+A teacher may be both Main and Specialized teacher
+3.3 Subjects
+Each subject contains:
+Subject name
+Assigned specialized teacher
+Assignments
+Grades
+Attendance records
+The subjects are:
+Math
+English
+Chemistry
+Physics
+Biology
+History
+3.4 Assignments
+Assignment Types
+File upload
+Text submission
+Quiz/Test paper
+Assignment Properties
+Title
+Description
+Subject ID
+Created by
+Deadline
+Allow late submission (boolean)
+Allow resubmission (boolean)
+Total score
+Semester ID
+Attachments (optional)
+Submission
+Student ID
+Assignment ID
+File OR text OR quiz answers
+Submitted at
+Late flag
+Score
+Teacher comment
+Rules
+Optimistic submission UI
+Teachers can comment
+Teachers can update score
+3.5 Quiz System
+Quiz Structure
+Multiple choice
+Essay
+Auto-grading for MC
+Manual grading for essay
+3.6 Grading System
+Score Type
+Numeric (0–100)
+Semester-Based
+All assignments grouped by semester.
+3.7 Ranking System
+Ranking Types
+1. Overall Ranking
+Based on average across all subjects
+Visible ONLY to Main Teacher
+2. Subject Ranking
+Based on subject average
+Visible to:
+Main Teacher
+That subject’s Specialized Teacher
+Hidden From Students
+Students cannot see ranking
+Students only see their own scores
+3.8 Attendance Tracking
+Attendance Properties
+Date
+Subject
+Student ID
+Status: Present / Absent / Excused
+Semester
+Capabilities
+Teacher marks attendance
+Students can view their own attendance
+Main teacher sees overall
+Specialized teacher sees only their subject
+3.9 Announcements
+Scope
+Class-wide only
+Created By
+Main Teacher
+Specialized Teachers
+Administrative Students
+Announcement Properties
+Title
+Content
+Created by
+Created at
+Attachment (optional)
+Scheduled publish (optional)
+Permissions
+Users can edit/delete only their own announcements
+4. Pages & UI Structure
+Single dashboard with conditional rendering based on role.
+Shared Layout
+Sidebar
+Topbar (profile, role badge)
+Dynamic content
+Pages
+Dashboard (All Roles)
+Role summary
+Upcoming assignments
+Recent announcements
+Assignments Page
+List by subject
+Submission status
+Subject Detail Page
+Assignments
+Grades
+Attendance
+Ranking Page (Conditional)
+Overall ranking (Main Teacher only)
+Subject ranking (Main + relevant Specialized Teacher)
+Attendance Page
+Teacher: mark attendance
+Student: view own attendance
+Announcements Page
+Create (if permitted)
+Edit/delete own
+Admin Panel (Super Admin)
+Approve users
+Assign roles
+Assign subjects
+5. Database Schema (Convex)
+users
+_id
+name
+email
+role
+approved
+classId
+class
+_id
+name
+mainTeacherId
+subjects
+_id
+name
+classId
+teacherId
+semesters
+_id
+name
+startDate
+endDate
+assignments
+_id
+subjectId
+semesterId
+title
+description
+deadline
+allowLate
+allowResubmit
+totalScore
+submissions
+_id
+assignmentId
+studentId
+score
+comment
+submittedAt
+late
+attendance
+_id
+subjectId
+semesterId
+studentId
+date
+status
+announcements
+_id
+title
+content
+createdBy
+attachment
+scheduledAt
+createdAt
+6. Ranking Algorithm Specification
+Subject Average
+For each student: Average = Sum(subject assignment scores) / number of assignments
+Overall Average
+Average of all subject averages
+Ranking
+Sort descending by average score Tie breaker: earliest cumulative submission time OR alphabetical
+7. State Management & Data Flow
+React Query for all queries/mutations
+Optimistic updates for:
+Assignment submission
+Attendance marking
+Announcement creation
+Convex handles:
+Auth
+DB logic
+Permission validation
+8. Security Rules
+Backend role validation (never frontend only)
+Teachers restricted to their subject
+Students restricted to their own submissions
+Ranking endpoints blocked for students
+Only approved users access system
+9. Edge Cases
+Late submission after deadline
+Teacher role change mid-semester
+Deleted assignment with submissions
+Resubmission overwrite policy
+Student inactive but existing grades
+10. Future Roadmap (Not MVP)
+Multi-class support
+Parent accounts
+Messaging system
+Push notifications
+Analytics dashboards
+Export report cards (PDF)
+END OF PRD
