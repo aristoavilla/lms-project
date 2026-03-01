@@ -9,6 +9,7 @@ import {
 } from "../data/seed";
 import type {
   Announcement,
+  Assignment,
   AttendanceRecord,
   RankedStudent,
   Submission,
@@ -50,6 +51,39 @@ export async function listAssignmentsForUser(user: User) {
     );
   }
   return assignments.filter((assignment) => classSubjects.includes(assignment.subjectId));
+}
+
+export async function createAssignment(
+  teacher: User,
+  input: Pick<
+    Assignment,
+    "title" | "description" | "subjectId" | "deadline" | "totalScore"
+  >,
+) {
+  await delay();
+  if (teacher.role !== "main_teacher") {
+    throw new Error("Only main teachers can create assignments.");
+  }
+  const subject = subjects.find((item) => item._id === input.subjectId);
+  if (!subject) {
+    throw new Error("Subject not found.");
+  }
+  if (subject.teacherId !== teacher._id) {
+    throw new Error("You can only create assignments for your owned subject.");
+  }
+  assignments.unshift({
+    _id: `as-${Date.now()}`,
+    subjectId: input.subjectId,
+    semesterId: semesters[0]._id,
+    title: input.title,
+    description: input.description,
+    deadline: input.deadline,
+    allowLate: true,
+    allowResubmit: true,
+    totalScore: input.totalScore,
+    createdBy: teacher._id,
+    assignmentType: "text",
+  });
 }
 
 export async function listAnnouncementsForClass(classId: string) {

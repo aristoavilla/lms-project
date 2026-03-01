@@ -4,7 +4,7 @@ export const roleLabel: Record<Role, string> = {
   super_admin: "Super Admin",
   main_teacher: "Main Teacher",
   specialized_teacher: "Specialized Teacher",
-  administrative_student: "Administrative Student",
+  administrative_student: "Admin Student",
   regular_student: "Regular Student",
 };
 
@@ -25,11 +25,15 @@ export function canManageAnnouncements(user: User) {
 }
 
 export function canViewRanking(user: User) {
-  return user.role === "main_teacher" || user.role === "specialized_teacher";
+  return (
+    user.role === "super_admin" ||
+    user.role === "main_teacher" ||
+    user.role === "specialized_teacher"
+  );
 }
 
 export function canViewOverallRanking(user: User) {
-  return user.role === "main_teacher";
+  return user.role === "super_admin" || user.role === "main_teacher";
 }
 
 export function canAccessSubject(user: User, subjectId: string) {

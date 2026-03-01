@@ -42,7 +42,7 @@ export function useRanking(user: User, subjectId?: string) {
     queryKey: ["ranking", user._id, subjectId ?? "overall"],
     queryFn: () =>
       subjectId ? lms.getSubjectRanking(user, subjectId) : lms.getOverallRanking(user),
-    enabled: subjectId ? true : user.role === "main_teacher",
+    enabled: subjectId ? true : user.role === "main_teacher" || user.role === "super_admin",
   });
 }
 
@@ -54,6 +54,22 @@ export function useSubmitAssignment(user: User) {
       payload: string;
       submissionType: SubmissionType;
     }) => lms.submitAssignment(user, variables.assignmentId, variables.payload, variables.submissionType),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["assignments", user._id] });
+    },
+  });
+}
+
+export function useCreateAssignment(user: User) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: {
+      title: string;
+      description: string;
+      subjectId: string;
+      deadline: string;
+      totalScore: number;
+    }) => lms.createAssignment(user, variables),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["assignments", user._id] });
     },
