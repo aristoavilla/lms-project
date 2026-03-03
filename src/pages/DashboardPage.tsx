@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { superAdminClasses } from "../data/superAdminCatalog";
@@ -22,18 +22,20 @@ export function DashboardPage({ user }: Props) {
   const attendance = useAttendance(user);
   const users = useUsers();
   const subjects = useSubjects(user);
+  const [currentTime] = useState(() => Date.now());
 
   const assignmentItems = assignments.data ?? [];
   const announcementItems = announcements.data ?? [];
   const isTeacher = user.role === "main_teacher" || user.role === "specialized_teacher";
   const isStudent = user.role === "regular_student" || user.role === "administrative_student";
+  const taughtClassIds = user.taughtClassIds ?? [user.classId];
 
   const visibleAssignments = useMemo(() => {
-    if (isTeacher) {
-      return assignmentItems.filter((assignment) => assignment.createdBy === user._id);
+    if (!isTeacher) {
+      return assignmentItems;
     }
-    return assignmentItems;
-  }, [assignmentItems, isTeacher, user._id]);
+    return assignmentItems.filter((assignment) => taughtClassIds.includes(assignment.classId));
+  }, [assignmentItems, isTeacher, taughtClassIds]);
 
   const submissionRows = useQuery({
     queryKey: ["dashboard-submissions", visibleAssignments.map((a) => a._id).join(",")],
@@ -68,9 +70,10 @@ export function DashboardPage({ user }: Props) {
   const classAttendance = useMemo(
     () =>
       (attendance.data ?? []).filter((record) =>
+        record.classId === user.classId &&
         classStudents.some((student) => student._id === record.studentId),
       ),
-    [attendance.data, classStudents],
+    [attendance.data, classStudents, user.classId],
   );
 
   const attendancePercentage = useMemo(() => {
@@ -102,10 +105,17 @@ export function DashboardPage({ user }: Props) {
   );
 
   if (isTeacher) {
-    const ownedSubjectNames = (subjects.data ?? [])
-      .filter((subject) => subject.teacherId === user._id)
-      .map((subject) => subject.name)
-      .join(", ");
+    const ownedSubjectName =
+      (subjects.data ?? []).find((subject) => subject._id === user.subjectId)?.name ?? "Subject";
+    const taughtClassSummary = taughtClassIds.map((classId) => {
+      const classAssignments = visibleAssignments.filter((assignment) => assignment.classId === classId);
+      const assignmentIds = new Set(classAssignments.map((assignment) => assignment._id));
+      const pending = (submissionRows.data ?? []).filter(
+        (submission: Submission) =>
+          assignmentIds.has(submission.assignmentId) && typeof submission.score !== "number",
+      ).length;
+      return { classId, upcoming: classAssignments.length, pending };
+    });
     return (
       <div className="page">
         <div className="page-header">
@@ -113,11 +123,13 @@ export function DashboardPage({ user }: Props) {
           <p>Welcome back, {user.name}</p>
           {user.role === "main_teacher" && (
             <small className="profile-summary">
-              Class {user.classId} Main Teacher and {ownedSubjectNames || "Subject"} Teacher
+              Class {user.classId} Main Teacher and {ownedSubjectName} Teacher
             </small>
           )}
         </div>
-        <div className="stat-grid teacher-five">
+
+        <h2 className="section-title">Main Class Summary ({user.classId.replace("class-", "")})</h2>
+        <div className="stat-grid">
           <Link className="stat-card clickable" to="/ranking">
             <h3>Grade Percentage</h3>
             <strong>{gradePercentage}%</strong>
@@ -130,14 +142,43 @@ export function DashboardPage({ user }: Props) {
             <h3>Students in Class</h3>
             <strong>{classStudents.length}</strong>
           </Link>
-          <Link className="stat-card clickable" to="/assignments">
-            <h3>Upcoming Assignments</h3>
-            <strong>{visibleAssignments.length}</strong>
-          </Link>
-          <Link className="stat-card clickable" to="/assignments">
-            <h3>Pending Grading</h3>
-            <strong>{pendingGrading}</strong>
-          </Link>
+        </div>
+
+        <hr className="section-divider" />
+
+        <div className="two-col">
+          <article className="panel">
+            <h2>Taught Classes Overview</h2>
+            <div className="stack-list">
+              {taughtClassSummary.map((item) => (
+                <article key={item.classId} className="item-card">
+                  <div className="row-between">
+                    <strong>{item.classId.replace("class-", "Class ")}</strong>
+                    <span className="badge subtle">Subject: {ownedSubjectName}</span>
+                  </div>
+                  <p>Upcoming Assignments: {item.upcoming}</p>
+                  <p>Pending Grading: {item.pending}</p>
+                </article>
+              ))}
+              <article className="item-card">
+                <strong>Total Pending Grading</strong>
+                <p>{pendingGrading}</p>
+              </article>
+            </div>
+          </article>
+
+          <article className="panel">
+            <h2>Recent Announcements</h2>
+            <div className="stack-list">
+              {announcementItems.slice(0, 4).map((announcement) => (
+                <article key={announcement._id} className="item-card">
+                  <strong>{announcement.title}</strong>
+                  <p>{announcement.content}</p>
+                  <small>{new Date(announcement.createdAt).toLocaleString()}</small>
+                </article>
+              ))}
+            </div>
+          </article>
         </div>
       </div>
     );
@@ -190,7 +231,7 @@ export function DashboardPage({ user }: Props) {
                         {Math.max(
                           0,
                           Math.ceil(
-                            (new Date(assignment.deadline).getTime() - Date.now()) /
+                            (new Date(assignment.deadline).getTime() - currentTime) /
                               (1000 * 60 * 60 * 24),
                           ),
                         )}{" "}

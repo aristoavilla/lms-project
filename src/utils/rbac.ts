@@ -41,17 +41,14 @@ export function canAccessSubject(user: User, subjectId: string) {
     return true;
   }
   if (user.role === "specialized_teacher") {
-    return user.subjectIds?.includes(subjectId) ?? false;
+    return user.subjectId === subjectId;
   }
   return true;
 }
 
 export function canGradeSubject(user: User, subjectId: string) {
-  if (user.role === "main_teacher") {
-    return user.subjectIds?.includes(subjectId) ?? true;
-  }
-  if (user.role === "specialized_teacher") {
-    return user.subjectIds?.includes(subjectId) ?? false;
+  if (user.role === "main_teacher" || user.role === "specialized_teacher") {
+    return user.subjectId === subjectId;
   }
   return false;
 }

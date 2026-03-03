@@ -8,30 +8,18 @@ interface Props {
 }
 
 export function RankingPage({ user }: Props) {
-  const [subjectId, setSubjectId] = useState<string>("");
+  const [mainClassSubjectId, setMainClassSubjectId] = useState<string>("");
   const [teacherTab, setTeacherTab] = useState<"main_class" | "subject_class">("main_class");
   const [activeBatch, setActiveBatch] = useState<(typeof batches)[number]>("1st");
-  const [selectedClassId, setSelectedClassId] = useState<string>("class-1A");
+  const [selectedClassId, setSelectedClassId] = useState<string>(user.classId);
   const subjects = useSubjects(user);
   const users = useUsers();
   const isTeacher = user.role === "main_teacher" || user.role === "specialized_teacher";
   const isMainTeacher = user.role === "main_teacher";
   const effectiveTeacherTab: "main_class" | "subject_class" =
     isMainTeacher ? teacherTab : "subject_class";
-
-  const ownSubjects = useMemo(
-    () => (subjects.data ?? []).filter((subject) => subject.teacherId === user._id),
-    [subjects.data, user._id],
-  );
-  const safeSubjectId = subjectId || ownSubjects[0]?._id || "";
-
-  const overall = useRanking(user);
-  const bySubject = useRanking(user, safeSubjectId || undefined);
-
-  const teacherClassIds = useMemo(() => {
-    const list = ownSubjects.map((subject) => subject.classId);
-    return Array.from(new Set(isMainTeacher ? [user.classId, ...list] : list));
-  }, [ownSubjects, isMainTeacher, user.classId]);
+  const ownSubject = (subjects.data ?? []).find((subject) => subject._id === user.subjectId);
+  const teacherClassIds = user.taughtClassIds ?? [user.classId];
 
   const batchClasses = useMemo(
     () => superAdminClasses.filter((item) => item.batch === activeBatch),
@@ -44,27 +32,29 @@ export function RankingPage({ user }: Props) {
         ? selectedClassId
         : batchClasses[0]?.id);
 
+  const mainOverall = useRanking(user, undefined, user.classId);
+  const mainBySubject = useRanking(user, mainClassSubjectId || undefined, user.classId);
+  const byOwnSubjectClass = useRanking(user, user.subjectId, safeClassId);
+
   const rankingItems = (() => {
     if (isTeacher) {
       if (effectiveTeacherTab === "main_class") {
-        return overall.data ?? [];
+        return mainClassSubjectId ? mainBySubject.data ?? [] : mainOverall.data ?? [];
       }
-      return bySubject.data ?? [];
+      return byOwnSubjectClass.data ?? [];
     }
-    return subjectId ? bySubject.data ?? [] : overall.data ?? [];
+    return [];
   })();
 
   const classStudentIds = useMemo(
     () =>
       (users.data ?? [])
-        .filter((candidate) => candidate.classId === safeClassId)
+        .filter((candidate) => candidate.classId === (effectiveTeacherTab === "main_class" ? user.classId : safeClassId))
         .map((candidate) => candidate._id),
-    [users.data, safeClassId],
+    [users.data, safeClassId, effectiveTeacherTab, user.classId],
   );
 
-  const filteredRanking = rankingItems.filter((item) =>
-    classStudentIds.includes(item.studentId),
-  );
+  const filteredRanking = rankingItems.filter((item) => classStudentIds.includes(item.studentId));
 
   return (
     <div className="page">
@@ -82,67 +72,65 @@ export function RankingPage({ user }: Props) {
                 className={effectiveTeacherTab === "main_class" ? "active" : ""}
                 onClick={() => setTeacherTab("main_class")}
               >
-                Main Class Ranking
+                Main Class Rankings
               </button>
               <button
                 type="button"
                 className={effectiveTeacherTab === "subject_class" ? "active" : ""}
                 onClick={() => setTeacherTab("subject_class")}
               >
-                Subject Ranking by Class
+                Your {ownSubject?.name ?? "Subject"} Classes Rankings
               </button>
             </div>
+          )}
+
+          {effectiveTeacherTab === "main_class" && (
+            <>
+              <h3 className="muted-line">Class {user.classId.replace("class-", "")}</h3>
+              <div className="pill-nav secondary">
+                <button
+                  type="button"
+                  className={mainClassSubjectId === "" ? "active" : ""}
+                  onClick={() => setMainClassSubjectId("")}
+                >
+                  Overall
+                </button>
+                {(subjects.data ?? []).map((subject) => (
+                  <button
+                    key={subject._id}
+                    type="button"
+                    className={mainClassSubjectId === subject._id ? "active" : ""}
+                    onClick={() => setMainClassSubjectId(subject._id)}
+                  >
+                    {subject.name}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
 
           {(effectiveTeacherTab === "subject_class" || !isMainTeacher) && (
-            <div className="pill-nav">
-              {ownSubjects.map((subject) => (
-                <button
-                  key={subject._id}
-                  type="button"
-                  className={safeSubjectId === subject._id ? "active" : ""}
-                  onClick={() => setSubjectId(subject._id)}
-                >
-                  {subject.name}
-                </button>
-              ))}
-            </div>
+            <>
+              <h3 className="muted-line">
+                Your {ownSubject?.name ?? "Subject"} Classes Rankings
+              </h3>
+              <div className="pill-nav secondary">
+                {teacherClassIds.map((classId) => (
+                  <button
+                    key={classId}
+                    type="button"
+                    className={classId === safeClassId ? "active" : ""}
+                    onClick={() => setSelectedClassId(classId)}
+                  >
+                    {classId.replace("class-", "Class ")}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
-
-          <div className="pill-nav secondary">
-            {teacherClassIds.map((classId) => (
-              <button
-                key={classId}
-                type="button"
-                className={classId === safeClassId ? "active" : ""}
-                onClick={() => setSelectedClassId(classId)}
-              >
-                {classId}
-              </button>
-            ))}
-          </div>
         </>
       ) : (
         <>
-          <div className="pill-nav">
-            <button
-              type="button"
-              className={subjectId === "" ? "active" : ""}
-              onClick={() => setSubjectId("")}
-            >
-              Overall Ranking
-            </button>
-            {(subjects.data ?? []).map((subject) => (
-              <button
-                key={subject._id}
-                type="button"
-                className={subjectId === subject._id ? "active" : ""}
-                onClick={() => setSubjectId(subject._id)}
-              >
-                {subject.name}
-              </button>
-            ))}
-          </div>
           <div className="pill-nav secondary">
             {batches.map((batch) => (
               <button
@@ -174,11 +162,11 @@ export function RankingPage({ user }: Props) {
         <h2>
           {isTeacher
             ? effectiveTeacherTab === "main_class"
-              ? "Main Class Overall Ranking"
-              : "Subject Ranking by Class"
-            : subjectId
-              ? "Subject Ranking"
-              : "Overall School Ranking"}
+              ? mainClassSubjectId
+                ? "Main Class Subject Ranking"
+                : "Main Class Overall Ranking"
+              : `Your ${ownSubject?.name ?? "Subject"} Classes Rankings`
+            : "Ranking"}
         </h2>
         <table>
           <thead>
@@ -195,7 +183,7 @@ export function RankingPage({ user }: Props) {
               <tr key={item.studentId}>
                 <td>{index + 1}</td>
                 <td>{item.studentName}</td>
-                <td>{safeClassId}</td>
+                <td>{(effectiveTeacherTab === "main_class" ? user.classId : safeClassId).replace("class-", "")}</td>
                 <td>{item.average}%</td>
                 <td>
                   {item.average >= 90

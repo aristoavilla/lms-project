@@ -28,8 +28,8 @@ export function SuperAdminPage({ user }: Props) {
   const users = useUsers();
   const subjects = useSubjects(user);
   const actions = useAdminActions(user);
-  const [subjectId, setSubjectId] = useState("sub-english");
-  const [teacherId, setTeacherId] = useState("u-spec-eng");
+  const [subjectId, setSubjectId] = useState("subject-english");
+  const [teacherId, setTeacherId] = useState("u-main-2");
   const [searchParams, setSearchParams] = useSearchParams();
 
   const activeTab = (searchParams.get("tab") as AdminTab | null) ?? "pending";
@@ -44,13 +44,10 @@ export function SuperAdminPage({ user }: Props) {
     (candidate) =>
       candidate.role === "regular_student" || candidate.role === "administrative_student",
   );
-  const subjectCountByClass = useMemo(() => {
-    const map = new Map<string, number>();
-    (subjects.data ?? []).forEach((subject) => {
-      map.set(subject.classId, (map.get(subject.classId) ?? 0) + 1);
-    });
-    return map;
-  }, [subjects.data]);
+  const subjectCountByClass = useMemo(
+    () => new Map(superAdminClasses.map((item) => [item.id, 6])),
+    [],
+  );
 
   return (
     <div className="page">
@@ -127,7 +124,7 @@ export function SuperAdminPage({ user }: Props) {
                   <td>{teacher.name}</td>
                   <td>{teacher.role}</td>
                   <td>{teacher.classId}</td>
-                  <td>{(teacher.subjectIds ?? []).join(", ") || "-"}</td>
+                  <td>{teacher.subjectId ?? "-"}</td>
                   <td className="button-row">
                     <select
                       defaultValue={teacher.role}

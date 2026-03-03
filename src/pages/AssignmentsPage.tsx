@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   useAssignments,
   useCreateAssignment,
@@ -29,24 +29,20 @@ export function AssignmentsPage({ user }: Props) {
   const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [subjectId, setSubjectId] = useState("");
+  const [classId, setClassId] = useState("");
   const [description, setDescription] = useState("");
   const [deadline, setDeadline] = useState("");
   const [totalScore, setTotalScore] = useState(100);
   const [studentPayload, setStudentPayload] = useState("");
   const [archivedIds, setArchivedIds] = useState<string[]>([]);
-  const [subjectFilter, setSubjectFilter] = useState("all");
+  const [classFilter, setClassFilter] = useState("all");
+  const [tableFlash, setTableFlash] = useState(false);
 
   const isTeacher = user.role === "main_teacher" || user.role === "specialized_teacher";
   const isStudent = user.role === "regular_student" || user.role === "administrative_student";
-  const canCreate = user.role === "main_teacher";
-
-  const ownSubjectIds = useMemo(
-    () =>
-      (subjects.data ?? [])
-        .filter((subject) => subject.teacherId === user._id)
-        .map((subject) => subject._id),
-    [subjects.data, user._id],
-  );
+  const canCreate = isTeacher;
+  const taughtClassIds = user.taughtClassIds ?? [user.classId];
+  const ownSubjectIds = user.subjectId ? [user.subjectId] : [];
 
   const visibleAssignments = useMemo(() => {
     const all = assignments.data ?? [];
@@ -95,9 +91,9 @@ export function AssignmentsPage({ user }: Props) {
 
   const teacherAssignments = useMemo(() => {
     return visibleAssignments.filter(
-      (assignment) => subjectFilter === "all" || assignment.subjectId === subjectFilter,
+      (assignment) => classFilter === "all" || assignment.classId === classFilter,
     );
-  }, [visibleAssignments, subjectFilter]);
+  }, [visibleAssignments, classFilter]);
 
   const currentStudentTab = (searchParams.get("tab") as StudentTab | null) ?? "focus";
   const safeStudentTab: StudentTab = ["focus", "pending", "graded", "archived"].includes(
@@ -216,19 +212,26 @@ export function AssignmentsPage({ user }: Props) {
                   </div>
                   <p>{assignment.description}</p>
                   <small>
+                    Class: {assignment.classId.replace("class-", "")} |{" "}
                     Due: {new Date(assignment.deadline).toLocaleDateString()} | Max Score:{" "}
                     {assignment.totalScore}
                   </small>
                 </button>
               );
             })}
-            {studentAssignments.length === 0 && <p>No assignments in this section.</p>}
+            {studentAssignments.length === 0 && (
+              <p>
+                No assignments in this section. Switch tabs or wait for your teacher to publish
+                new work.
+              </p>
+            )}
           </div>
         </article>
 
         {activeAssignment && (
           <article className="panel">
             <h2>Assignment Detail</h2>
+            <p className="muted-line">Selected assignment details are shown below.</p>
             <p>
               <strong>{activeAssignment.title}</strong>
             </p>
@@ -238,8 +241,8 @@ export function AssignmentsPage({ user }: Props) {
             </p>
             <p>
               Teacher:{" "}
-              {userMap.get(subjectMap.get(activeAssignment.subjectId)?.teacherId ?? "")?.name ??
-                subjectMap.get(activeAssignment.subjectId)?.teacherId ??
+              {userMap.get(activeAssignment.createdBy)?.name ??
+                activeAssignment.createdBy ??
                 "-"}
             </p>
             <p>Deadline: {new Date(activeAssignment.deadline).toLocaleString()}</p>
@@ -271,6 +274,12 @@ export function AssignmentsPage({ user }: Props) {
             )}
           </article>
         )}
+
+        {!activeAssignment && (
+          <article className="panel">
+            <p>Select an assignment from the list to view details and submission table.</p>
+          </article>
+        )}
       </div>
     );
   }
@@ -292,21 +301,19 @@ export function AssignmentsPage({ user }: Props) {
       <div className="pill-nav">
         <button
           type="button"
-          className={subjectFilter === "all" ? "active" : ""}
-          onClick={() => setSubjectFilter("all")}
+          className={classFilter === "all" ? "active" : ""}
+          onClick={() => setClassFilter("all")}
         >
-          My Subjects
+          All My Classes
         </button>
-        {(subjects.data ?? [])
-          .filter((subject) => ownSubjectIds.includes(subject._id))
-          .map((subject) => (
+        {taughtClassIds.map((classId) => (
             <button
-              key={subject._id}
+              key={classId}
               type="button"
-              className={subjectFilter === subject._id ? "active" : ""}
-              onClick={() => setSubjectFilter(subject._id)}
+              className={classFilter === classId ? "active" : ""}
+              onClick={() => setClassFilter(classId)}
             >
-              {subject.name}
+              {classId.replace("class-", "Class ")}
             </button>
           ))}
       </div>
@@ -324,7 +331,15 @@ export function AssignmentsPage({ user }: Props) {
                     {assignment.totalScore}
                   </small>
                 </div>
-                <button type="button" onClick={() => setActiveAssignmentId(assignment._id)}>
+                <button
+                  type="button"
+                  className="view-submissions-button"
+                  onClick={() => {
+                    setActiveAssignmentId(assignment._id);
+                    setTableFlash(true);
+                    window.setTimeout(() => setTableFlash(false), 320);
+                  }}
+                >
                   View Submissions
                 </button>
               </div>
@@ -335,7 +350,7 @@ export function AssignmentsPage({ user }: Props) {
       </article>
 
       {activeAssignment && (
-        <article className="panel">
+        <article className={`panel ${tableFlash ? "table-flash" : ""}`}>
           <h2>{activeAssignment.title} Submissions</h2>
           <table>
             <thead>
@@ -345,6 +360,7 @@ export function AssignmentsPage({ user }: Props) {
                 <th>Grade</th>
                 <th>Teacher Comment</th>
                 <th>Status</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -355,11 +371,14 @@ export function AssignmentsPage({ user }: Props) {
                   <td>{typeof submission.score === "number" ? `${submission.score}%` : "-"}</td>
                   <td>{submission.comment || "-"}</td>
                   <td>{submission.late ? "Late" : "On time"}</td>
+                  <td>
+                    <Link to={`/submissions/${submission._id}`}>View Work</Link>
+                  </td>
                 </tr>
               ))}
               {(submissionsByAssignment.get(activeAssignment._id) ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={5}>No submissions yet.</td>
+                  <td colSpan={6}>No submissions yet.</td>
                 </tr>
               )}
             </tbody>
@@ -385,6 +404,7 @@ export function AssignmentsPage({ user }: Props) {
                     title,
                     description,
                     subjectId,
+                    classId,
                     deadline: new Date(deadline).toISOString(),
                     totalScore,
                   },
@@ -394,6 +414,7 @@ export function AssignmentsPage({ user }: Props) {
                       setTitle("");
                       setDescription("");
                       setSubjectId("");
+                      setClassId("");
                       setDeadline("");
                       setTotalScore(100);
                     },
@@ -420,6 +441,18 @@ export function AssignmentsPage({ user }: Props) {
                       {subject.name}
                     </option>
                   ))}
+              </select>
+              <select
+                value={classId}
+                onChange={(event) => setClassId(event.target.value)}
+                required
+              >
+                <option value="">Select a class</option>
+                {taughtClassIds.map((classIdOption) => (
+                  <option key={classIdOption} value={classIdOption}>
+                    {classIdOption.replace("class-", "Class ")}
+                  </option>
+                ))}
               </select>
               <textarea
                 value={description}

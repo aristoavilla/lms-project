@@ -25,6 +25,7 @@ const assignments: Assignment[] = [
   {
     _id: "a1",
     subjectId: "math",
+    classId: "c1",
     semesterId: "sem1",
     title: "A1",
     description: "",
@@ -38,6 +39,7 @@ const assignments: Assignment[] = [
   {
     _id: "a2",
     subjectId: "eng",
+    classId: "c1",
     semesterId: "sem1",
     title: "A2",
     description: "",

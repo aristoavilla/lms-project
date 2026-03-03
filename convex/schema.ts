@@ -14,7 +14,7 @@ export default defineSchema({
     ),
     approved: v.boolean(),
     classId: v.id("class"),
-    subjectIds: v.optional(v.array(v.id("subjects"))),
+    subjectIds: v.optional(v.array(v.id("subjects"))), // A teacher should only have one subject
   }).index("by_email", ["email"]),
   class: defineTable({
     name: v.string(),
@@ -23,7 +23,7 @@ export default defineSchema({
   subjects: defineTable({
     name: v.string(),
     classId: v.id("class"),
-    teacherId: v.id("users"),
+    teacherId: v.id("users"), // A subject can have many teachers
   })
     .index("by_class", ["classId"])
     .index("by_teacher", ["teacherId"]),

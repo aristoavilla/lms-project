@@ -8,6 +8,7 @@ import { AttendancePage } from "./pages/AttendancePage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
 import { RankingPage } from "./pages/RankingPage";
+import { SubmissionDetailPage } from "./pages/SubmissionDetailPage";
 import { SubjectDetailPage } from "./pages/SubjectDetailPage";
 import { SuperAdminPage } from "./pages/SuperAdminPage";
 import { currentUserQuery } from "./services/lmsService";
@@ -56,6 +57,7 @@ function App() {
             path="subjects/:subjectId"
             element={<SubjectDetailPage user={user} />}
           />
+          <Route path="submissions/:submissionId" element={<SubmissionDetailPage user={user} />} />
           <Route
             path="ranking"
             element={

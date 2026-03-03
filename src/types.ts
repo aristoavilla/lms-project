@@ -23,7 +23,8 @@ export interface User {
   role: Role;
   approved: boolean;
   classId: string;
-  subjectIds?: string[];
+  subjectId?: string;
+  taughtClassIds?: string[];
 }
 
 export interface ClassRoom {
@@ -42,13 +43,20 @@ export interface Semester {
 export interface Subject {
   _id: string;
   name: SubjectName;
-  classId: string;
+}
+
+export interface TeacherClassSubject {
+  _id: string;
   teacherId: string;
+  classId: string;
+  subjectId: string;
+  isMainTeacher: boolean;
 }
 
 export interface Assignment {
   _id: string;
   subjectId: string;
+  classId: string;
   semesterId: string;
   title: string;
   description: string;
@@ -76,6 +84,7 @@ export interface Submission {
 export interface AttendanceRecord {
   _id: string;
   subjectId: string;
+  classId: string;
   semesterId: string;
   studentId: string;
   date: string;

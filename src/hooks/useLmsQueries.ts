@@ -3,9 +3,10 @@ import * as lms from "../services/lmsService";
 import type { Announcement, AttendanceStatus, SubmissionType, User } from "../types";
 
 export function useSubjects(user: User) {
+  const classId = user.role === "super_admin" ? "" : user.classId;
   return useQuery({
-    queryKey: ["subjects", user.classId],
-    queryFn: () => lms.listSubjectsByClass(user.classId),
+    queryKey: ["subjects", classId],
+    queryFn: () => lms.listSubjectsByClass(classId),
   });
 }
 
@@ -37,11 +38,13 @@ export function useAttendance(user: User) {
   });
 }
 
-export function useRanking(user: User, subjectId?: string) {
+export function useRanking(user: User, subjectId?: string, classId?: string) {
   return useQuery({
-    queryKey: ["ranking", user._id, subjectId ?? "overall"],
+    queryKey: ["ranking", user._id, subjectId ?? "overall", classId ?? user.classId],
     queryFn: () =>
-      subjectId ? lms.getSubjectRanking(user, subjectId) : lms.getOverallRanking(user),
+      subjectId
+        ? lms.getSubjectRanking(user, subjectId, classId ?? user.classId)
+        : lms.getOverallRanking(user, classId ?? user.classId),
     enabled: subjectId ? true : user.role === "main_teacher" || user.role === "super_admin",
   });
 }
@@ -67,6 +70,7 @@ export function useCreateAssignment(user: User) {
       title: string;
       description: string;
       subjectId: string;
+      classId: string;
       deadline: string;
       totalScore: number;
     }) => lms.createAssignment(user, variables),
@@ -122,6 +126,7 @@ export function useMarkAttendance(user: User) {
   return useMutation({
     mutationFn: (variables: {
       subjectId: string;
+      classId: string;
       studentId: string;
       date: string;
       status: AttendanceStatus;

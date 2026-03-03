@@ -6,6 +6,12 @@ interface Props {
   user: User;
 }
 
+function shiftDate(value: string, offset: number) {
+  const base = new Date(`${value}T00:00:00`);
+  base.setDate(base.getDate() + offset);
+  return base.toISOString().slice(0, 10);
+}
+
 export function AttendancePage({ user }: Props) {
   const attendance = useAttendance(user);
   const subjects = useSubjects(user);
@@ -14,19 +20,32 @@ export function AttendancePage({ user }: Props) {
 
   const isTeacher = user.role === "main_teacher" || user.role === "specialized_teacher";
   const isMainTeacher = user.role === "main_teacher";
-  const ownSubjects = (subjects.data ?? []).filter((subject) => subject.teacherId === user._id);
+  const taughtClassIds = user.taughtClassIds ?? [user.classId];
   const [mode, setMode] = useState<"main_class" | "subject">("main_class");
-  const [subjectId, setSubjectId] = useState<string>(ownSubjects[0]?._id ?? "");
+  const [selectedClassId, setSelectedClassId] = useState<string>(taughtClassIds[0] ?? user.classId);
   const [date, setDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [draftStatus, setDraftStatus] = useState<Record<string, AttendanceStatus>>({});
+  const [saveMessage, setSaveMessage] = useState<string>("");
+  const [saveError, setSaveError] = useState<string>("");
+  const subjectName =
+    (subjects.data ?? []).find((subject) => subject._id === user.subjectId)?.name ?? "Subject";
+
+  const selectedStudents = useMemo(
+    () =>
+      (users.data ?? []).filter(
+        (candidate) =>
+          candidate.classId === selectedClassId &&
+          (candidate.role === "regular_student" || candidate.role === "administrative_student"),
+      ),
+    [users.data, selectedClassId],
+  );
 
   const classStudents = useMemo(
     () =>
       (users.data ?? []).filter(
         (candidate) =>
           candidate.classId === user.classId &&
-          (candidate.role === "regular_student" ||
-            candidate.role === "administrative_student"),
+          (candidate.role === "regular_student" || candidate.role === "administrative_student"),
       ),
     [users.data, user.classId],
   );
@@ -55,30 +74,48 @@ export function AttendancePage({ user }: Props) {
     [classAttendance, classStudents],
   );
 
-  const selectedSubjectId = subjectId || ownSubjects[0]?._id || "";
   const existingByStudent = useMemo(() => {
     const map = new Map<string, AttendanceStatus>();
     (attendance.data ?? [])
-      .filter((record) => record.subjectId === selectedSubjectId && record.date === date)
+      .filter(
+        (record) =>
+          record.subjectId === user.subjectId &&
+          record.classId === selectedClassId &&
+          record.date === date,
+      )
       .forEach((record) => map.set(record.studentId, record.status));
     return map;
-  }, [attendance.data, date, selectedSubjectId]);
+  }, [attendance.data, date, selectedClassId, user.subjectId]);
 
   const saveAttendance = async () => {
+    if (!user.subjectId) {
+      setSaveError("Teacher subject is missing.");
+      return;
+    }
+    const hasMissing = selectedStudents.some(
+      (student) => !draftStatus[student._id] && !existingByStudent.get(student._id),
+    );
+    if (hasMissing) {
+      setSaveError("Set attendance status for every student before saving.");
+      return;
+    }
+    setSaveError("");
     await Promise.all(
-      classStudents.map(async (student) => {
+      selectedStudents.map(async (student) => {
         const status = draftStatus[student._id] ?? existingByStudent.get(student._id);
-        if (!status || !selectedSubjectId) {
+        if (!status) {
           return;
         }
         await mark.mutateAsync({
-          subjectId: selectedSubjectId,
+          subjectId: user.subjectId!,
+          classId: selectedClassId,
           studentId: student._id,
           date,
           status,
         });
       }),
     );
+    setSaveMessage(`Saved at ${new Date().toLocaleTimeString()}. You can still revise and save again.`);
   };
 
   if (!isTeacher) {
@@ -119,7 +156,6 @@ export function AttendancePage({ user }: Props) {
         </div>
         <article className="panel">
           <h2>Attendance History</h2>
-          <p>Your attendance records by date</p>
           <table>
             <thead>
               <tr>
@@ -186,23 +222,42 @@ export function AttendancePage({ user }: Props) {
         <article className="panel">
           <div className="row-between">
             <div>
-              <h2>Mark Attendance</h2>
-              <p>Select attendance status for each student</p>
+              <h2>Mark {subjectName} Attendance</h2>
+              <p>Select class, date, and status for each student</p>
             </div>
             <div className="row-end">
-              <select value={selectedSubjectId} onChange={(event) => setSubjectId(event.target.value)}>
-                {ownSubjects.map((subject) => (
-                  <option key={subject._id} value={subject._id}>
-                    {subject.name}
-                  </option>
+              <div className="pill-nav secondary">
+                {taughtClassIds.map((classId) => (
+                  <button
+                    key={classId}
+                    type="button"
+                    className={classId === selectedClassId ? "active" : ""}
+                    onClick={() => {
+                      setSelectedClassId(classId);
+                      setDraftStatus({});
+                      setSaveMessage("");
+                      setSaveError("");
+                    }}
+                  >
+                    {classId.replace("class-", "Class ")}
+                  </button>
                 ))}
-              </select>
+              </div>
+              <button type="button" onClick={() => setDate(shiftDate(date, -1))}>
+                {"<"}
+              </button>
               <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+              <button type="button" onClick={() => setDate(shiftDate(date, 1))}>
+                {">"}
+              </button>
               <button type="button" onClick={saveAttendance}>
                 Save Attendance
               </button>
             </div>
           </div>
+
+          {saveError && <p className="status-absent">{saveError}</p>}
+          {saveMessage && <p className="status-present">{saveMessage}</p>}
 
           <table>
             <thead>
@@ -213,7 +268,7 @@ export function AttendancePage({ user }: Props) {
               </tr>
             </thead>
             <tbody>
-              {classStudents.map((student) => {
+              {selectedStudents.map((student) => {
                 const status = draftStatus[student._id] ?? existingByStudent.get(student._id);
                 return (
                   <tr key={student._id}>
