@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as lms from "../services/lmsService";
 import type { Announcement, AttendanceStatus, SubmissionType, User } from "../types";
 
@@ -26,8 +26,8 @@ export function useAssignments(user: User) {
 
 export function useAnnouncements(user: User) {
   return useQuery({
-    queryKey: ["announcements", user.classId],
-    queryFn: () => lms.listAnnouncementsForClass(user.classId),
+    queryKey: ["announcements", user.role, user.classId],
+    queryFn: () => lms.listAnnouncementsForUser(user),
   });
 }
 
@@ -49,6 +49,16 @@ export function useRanking(user: User, subjectId?: string, classId?: string) {
   });
 }
 
+export function useBatchClassOverallRanking(user: User, classIds: string[]) {
+  return useQueries({
+    queries: classIds.map((classId) => ({
+      queryKey: ["ranking", "class-overall", user._id, classId],
+      queryFn: () => lms.getOverallRanking(user, classId),
+      enabled: user.role === "super_admin",
+    })),
+  });
+}
+
 export function useSubmitAssignment(user: User) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -59,6 +69,9 @@ export function useSubmitAssignment(user: User) {
     }) => lms.submitAssignment(user, variables.assignmentId, variables.payload, variables.submissionType),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["assignments", user._id] });
+      await queryClient.invalidateQueries({ queryKey: ["assignment-submissions-many"] });
+      await queryClient.invalidateQueries({ queryKey: ["dashboard-submissions"] });
+      await queryClient.invalidateQueries({ queryKey: ["submissions"] });
     },
   });
 }
@@ -82,6 +95,7 @@ export function useCreateAssignment(user: User) {
 
 export function useCreateAnnouncement(user: User) {
   const queryClient = useQueryClient();
+  const announcementsKey = ["announcements", user.role, user.classId] as const;
   return useMutation<
     Announcement,
     Error,
@@ -90,11 +104,11 @@ export function useCreateAnnouncement(user: User) {
   >({
     mutationFn: lms.createAnnouncement.bind(null, user),
     onMutate: async (variables) => {
-      await queryClient.cancelQueries({ queryKey: ["announcements", user.classId] });
-      const previous = queryClient.getQueryData(["announcements", user.classId]) as
+      await queryClient.cancelQueries({ queryKey: announcementsKey });
+      const previous = queryClient.getQueryData(announcementsKey) as
         | Array<{ _id: string; title: string; content: string }>
         | undefined;
-      queryClient.setQueryData(["announcements", user.classId], (old: unknown) => {
+      queryClient.setQueryData(announcementsKey, (old: unknown) => {
         const current = Array.isArray(old) ? old : [];
         return [
           {
@@ -112,11 +126,11 @@ export function useCreateAnnouncement(user: User) {
     },
     onError: (_error, _variables, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(["announcements", user.classId], context.previous);
+        queryClient.setQueryData(announcementsKey, context.previous);
       }
     },
     onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["announcements", user.classId] });
+      await queryClient.invalidateQueries({ queryKey: announcementsKey });
     },
   });
 }

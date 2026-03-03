@@ -113,9 +113,110 @@ function buildClassStudents(classId: string) {
 
 const studentUsers = classIds.flatMap(buildClassStudents);
 
-export const users: User[] = [...adminUsers, ...teacherUsers, ...studentUsers];
+const demoUsers: User[] = [
+  {
+    _id: "u-demo-super-1",
+    name: "Demo Super Admin",
+    email: "demo.superadmin@school.edu",
+    role: "super_admin",
+    approved: true,
+    classId: "class-1A",
+  },
+  {
+    _id: "u-demo-main-1",
+    name: "Demo Main Teacher 1",
+    email: "demo.main1@school.edu",
+    role: "main_teacher",
+    approved: true,
+    classId: "class-1A",
+    subjectId: "subject-math",
+    taughtClassIds: ["class-1A"],
+  },
+  {
+    _id: "u-demo-main-2",
+    name: "Demo Main Teacher 2",
+    email: "demo.main2@school.edu",
+    role: "main_teacher",
+    approved: true,
+    classId: "class-1A",
+    subjectId: "subject-english",
+    taughtClassIds: ["class-1A"],
+  },
+  {
+    _id: "u-demo-spec-1",
+    name: "Demo Specialized Teacher 1",
+    email: "demo.spec1@school.edu",
+    role: "specialized_teacher",
+    approved: true,
+    classId: "class-1A",
+    subjectId: "subject-chemistry",
+    taughtClassIds: ["class-1A"],
+  },
+  {
+    _id: "u-demo-spec-2",
+    name: "Demo Specialized Teacher 2",
+    email: "demo.spec2@school.edu",
+    role: "specialized_teacher",
+    approved: true,
+    classId: "class-1A",
+    subjectId: "subject-physics",
+    taughtClassIds: ["class-1A"],
+  },
+  {
+    _id: "u-demo-spec-3",
+    name: "Demo Specialized Teacher 3",
+    email: "demo.spec3@school.edu",
+    role: "specialized_teacher",
+    approved: true,
+    classId: "class-1A",
+    subjectId: "subject-biology",
+    taughtClassIds: ["class-1A"],
+  },
+  {
+    _id: "u-demo-student-1",
+    name: "Demo Student 1",
+    email: "demo.student1@school.edu",
+    role: "regular_student",
+    approved: true,
+    classId: "class-1A",
+  },
+  {
+    _id: "u-demo-student-2",
+    name: "Demo Student 2",
+    email: "demo.student2@school.edu",
+    role: "regular_student",
+    approved: true,
+    classId: "class-1A",
+  },
+  {
+    _id: "u-demo-student-3",
+    name: "Demo Student 3",
+    email: "demo.student3@school.edu",
+    role: "regular_student",
+    approved: true,
+    classId: "class-1A",
+  },
+  {
+    _id: "u-demo-admin-student-1",
+    name: "Demo Admin Student 1",
+    email: "demo.adminstudent1@school.edu",
+    role: "administrative_student",
+    approved: true,
+    classId: "class-1A",
+  },
+  {
+    _id: "u-demo-admin-student-2",
+    name: "Demo Admin Student 2",
+    email: "demo.adminstudent2@school.edu",
+    role: "administrative_student",
+    approved: true,
+    classId: "class-1A",
+  },
+];
 
-export const teacherClassSubjects: TeacherClassSubject[] = teacherProfiles.flatMap((teacher) =>
+export const users: User[] = [...adminUsers, ...teacherUsers, ...studentUsers, ...demoUsers];
+
+const baseTeacherClassSubjects: TeacherClassSubject[] = teacherProfiles.flatMap((teacher) =>
   teacher.taughtClassIds.map((classId) => ({
     _id: `tcs-${teacher.id}-${classId}`,
     teacherId: teacher.id,
@@ -124,6 +225,75 @@ export const teacherClassSubjects: TeacherClassSubject[] = teacherProfiles.flatM
     isMainTeacher: teacher.mainClassId === classId,
   })),
 );
+
+const defaultSubjectTeacher = new Map<string, string>(
+  subjects.map((subject) => {
+    const owner =
+      teacherProfiles.find((teacher) => teacher.subjectId === subject._id)?.id ?? teacherProfiles[0].id;
+    return [subject._id, owner];
+  }),
+);
+
+const coverageTeacherClassSubjects: TeacherClassSubject[] = classIds.flatMap((classId) =>
+  subjects
+    .filter(
+      (subject) =>
+        !baseTeacherClassSubjects.some(
+          (mapping) => mapping.classId === classId && mapping.subjectId === subject._id,
+        ),
+    )
+    .map((subject) => ({
+      _id: `tcs-coverage-${classId}-${subject._id}`,
+      teacherId: defaultSubjectTeacher.get(subject._id) ?? teacherProfiles[0].id,
+      classId,
+      subjectId: subject._id,
+      isMainTeacher: false,
+    })),
+);
+
+const demoTeacherClassSubjects: TeacherClassSubject[] = [
+  {
+    _id: "tcs-demo-main-1A-math",
+    teacherId: "u-demo-main-1",
+    classId: "class-1A",
+    subjectId: "subject-math",
+    isMainTeacher: true,
+  },
+  {
+    _id: "tcs-demo-main-1A-english",
+    teacherId: "u-demo-main-2",
+    classId: "class-1A",
+    subjectId: "subject-english",
+    isMainTeacher: true,
+  },
+  {
+    _id: "tcs-demo-spec-1A-chemistry",
+    teacherId: "u-demo-spec-1",
+    classId: "class-1A",
+    subjectId: "subject-chemistry",
+    isMainTeacher: false,
+  },
+  {
+    _id: "tcs-demo-spec-1A-physics",
+    teacherId: "u-demo-spec-2",
+    classId: "class-1A",
+    subjectId: "subject-physics",
+    isMainTeacher: false,
+  },
+  {
+    _id: "tcs-demo-spec-1A-biology",
+    teacherId: "u-demo-spec-3",
+    classId: "class-1A",
+    subjectId: "subject-biology",
+    isMainTeacher: false,
+  },
+];
+
+export const teacherClassSubjects: TeacherClassSubject[] = [
+  ...baseTeacherClassSubjects,
+  ...coverageTeacherClassSubjects,
+  ...demoTeacherClassSubjects,
+];
 
 const seedAssignmentDefs: Array<{
   _id: string;
@@ -177,7 +347,61 @@ seedAssignmentDefs[1] = {
   assignmentType: "text",
 };
 
-export const assignments: Assignment[] = seedAssignmentDefs.map((item, index) => ({
+const coverageAssignments: Assignment[] = classIds.flatMap((classId, classIndex) =>
+  subjects.map((subject, subjectIndex) => {
+    const deadline = new Date(now);
+    deadline.setDate(deadline.getDate() + 10 + classIndex + subjectIndex);
+
+    return {
+      _id: `as-coverage-${classId}-${subject._id}`,
+      subjectId: subject._id,
+      classId,
+      semesterId: "sem-1-2026",
+      title: `${subject.name} Coverage Task ${classId.replace("class-", "")}`,
+      description: `Coverage assignment for ${subject.name} in ${classId.replace("class-", "Class ")}.`,
+      deadline: deadline.toISOString(),
+      allowLate: true,
+      allowResubmit: true,
+      totalScore: 100,
+      createdBy: defaultSubjectTeacher.get(subject._id) ?? "u-main-1",
+      assignmentType: subjectIndex % 3 === 0 ? "file" : subjectIndex % 3 === 1 ? "text" : "quiz",
+      attachments: classIndex % 2 === 0 ? [`coverage-${classId}-${subject._id}.pdf`] : undefined,
+    };
+  }),
+);
+
+const demoAssignments: Assignment[] = [
+  {
+    _id: "as-demo-math-1a",
+    subjectId: "subject-math",
+    classId: "class-1A",
+    semesterId: "sem-1-2026",
+    title: "Demo Math Review",
+    description: "Demo assignment for grading flow checks.",
+    deadline: "2026-03-20T23:59:00.000Z",
+    allowLate: true,
+    allowResubmit: true,
+    totalScore: 100,
+    createdBy: "u-demo-main-1",
+    assignmentType: "text",
+  },
+  {
+    _id: "as-demo-english-1a",
+    subjectId: "subject-english",
+    classId: "class-1A",
+    semesterId: "sem-1-2026",
+    title: "Demo English Reflection",
+    description: "Demo assignment for pending submissions.",
+    deadline: "2026-03-21T23:59:00.000Z",
+    allowLate: true,
+    allowResubmit: true,
+    totalScore: 100,
+    createdBy: "u-demo-main-2",
+    assignmentType: "text",
+  },
+];
+
+const baseAssignments: Assignment[] = seedAssignmentDefs.map((item, index) => ({
   _id: item._id,
   subjectId: item.subjectId,
   classId: item.classId,
@@ -192,6 +416,8 @@ export const assignments: Assignment[] = seedAssignmentDefs.map((item, index) =>
   assignmentType: item.assignmentType,
   attachments: index % 2 === 0 ? [`material-${index + 1}.pdf`] : undefined,
 }));
+
+export const assignments: Assignment[] = [...baseAssignments, ...coverageAssignments, ...demoAssignments];
 
 const classStudentMap = new Map(
   classIds.map((classId) => [
@@ -230,6 +456,66 @@ const generatedSubmissions: Submission[] = assignments.flatMap((assignment, assi
   });
 });
 
+const studentsNeedingCoverage = users.filter(
+  (user) =>
+    (user.role === "regular_student" || user.role === "administrative_student") &&
+    (classStudentMap.get(user.classId)?.findIndex((candidate) => candidate._id === user._id) ?? -1) >= 6,
+);
+
+const fullCoverageSubmissions: Submission[] = coverageAssignments.flatMap((assignment, assignmentIndex) =>
+  studentsNeedingCoverage
+    .filter((student) => student.classId === assignment.classId)
+    .map((student, studentIndex) => {
+      const submittedAt = new Date(now);
+      submittedAt.setDate(submittedAt.getDate() - ((assignmentIndex + studentIndex) % 2));
+      const score = 70 + ((assignmentIndex + studentIndex * 3) % 29);
+      return {
+        _id: `subm-coverage-${assignment._id}-${student._id}`,
+        assignmentId: assignment._id,
+        studentId: student._id,
+        submissionType: assignment.assignmentType,
+        payload:
+          assignment.assignmentType === "file"
+            ? `coverage-${assignment._id}-${student._id}.pdf`
+            : assignment.assignmentType === "quiz"
+              ? "B, C, B, A, short reasoning"
+              : `Coverage response for ${assignment.title}`,
+        score,
+        comment: "Coverage grading completed.",
+        submittedAt: submittedAt.toISOString(),
+        late: false,
+      };
+    }),
+);
+
+const demoStudents = users.filter((user) => [
+  "u-demo-student-1",
+  "u-demo-student-2",
+  "u-demo-student-3",
+  "u-demo-admin-student-1",
+  "u-demo-admin-student-2",
+].includes(user._id));
+
+const demoSubmissionMix: Submission[] = demoAssignments.flatMap((assignment, assignmentIndex) =>
+  demoStudents.map((student, studentIndex) => {
+    const submittedAt = new Date(now);
+    submittedAt.setDate(submittedAt.getDate() - ((assignmentIndex + studentIndex) % 3));
+    const graded = studentIndex >= 2;
+
+    return {
+      _id: `subm-demo-${assignment._id}-${student._id}`,
+      assignmentId: assignment._id,
+      studentId: student._id,
+      submissionType: assignment.assignmentType,
+      payload: `Demo response from ${student.name}`,
+      score: graded ? 74 + ((assignmentIndex + studentIndex) % 16) : undefined,
+      comment: graded ? "Reviewed in demo workflow." : undefined,
+      submittedAt: submittedAt.toISOString(),
+      late: false,
+    };
+  }),
+);
+
 const compatibilitySubmission = generatedSubmissions.find(
   (row) => row.assignmentId === "as-english-1",
 );
@@ -239,7 +525,11 @@ if (compatibilitySubmission) {
   compatibilitySubmission.comment = "Solid argument and examples.";
 }
 
-export const submissions: Submission[] = generatedSubmissions;
+export const submissions: Submission[] = [
+  ...generatedSubmissions,
+  ...fullCoverageSubmissions,
+  ...demoSubmissionMix,
+];
 
 export const attendance: AttendanceRecord[] = teacherClassSubjects.flatMap((mapping, mapIndex) => {
   const classStudents = classStudentMap.get(mapping.classId) ?? [];

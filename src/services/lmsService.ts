@@ -147,6 +147,18 @@ export async function listAnnouncementsForClass(classId: string) {
     .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
 }
 
+export async function listAnnouncementsForUser(user: User) {
+  await delay();
+  if (user.role === "super_admin") {
+    return [...announcementState].sort(
+      (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt),
+    );
+  }
+  return announcementState
+    .filter((announcement) => announcement.classId === user.classId)
+    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+}
+
 export async function createAnnouncement(
   user: User,
   input: Pick<Announcement, "title" | "content" | "attachment" | "scheduledAt">,

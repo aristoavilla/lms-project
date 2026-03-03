@@ -297,6 +297,16 @@
   color: #fff;
 }
 
+.badge.warning {
+  background: #f59e0b;
+  color: #fff;
+}
+
+.badge.success {
+  background: #16a34a;
+  color: #fff;
+}
+
 .badge.subtle {
   background: #e7edf5;
   color: #23334b;
@@ -529,6 +539,30 @@ button:active {
 
 .table-flash {
   animation: tableFlash 360ms ease;
+}
+
+.submission-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.submissions-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+}
+
+.submissions-table {
+  min-width: 760px;
+  border: 0;
+}
+
+.cell-truncate {
+  max-width: 280px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 @keyframes tableFlash {

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { superAdminClasses } from "../data/superAdminCatalog";
+import { batches, superAdminClasses } from "../data/superAdminCatalog";
 import {
   useAnnouncements,
   useAssignments,
@@ -28,6 +28,7 @@ export function DashboardPage({ user }: Props) {
   const announcementItems = announcements.data ?? [];
   const isTeacher = user.role === "main_teacher" || user.role === "specialized_teacher";
   const isStudent = user.role === "regular_student" || user.role === "administrative_student";
+  const isSuperAdmin = user.role === "super_admin";
   const taughtClassIds = user.taughtClassIds ?? [user.classId];
 
   const visibleAssignments = useMemo(() => {
@@ -103,6 +104,162 @@ export function DashboardPage({ user }: Props) {
       ).length,
     [submissionRows.data],
   );
+
+  const superAdminInsights = useMemo(() => {
+    if (!isSuperAdmin) {
+      return null;
+    }
+
+    const allUsers = users.data ?? [];
+    const allAttendance = attendance.data ?? [];
+    const allSubmissions = submissionRows.data ?? [];
+    const classMetaById = new Map(superAdminClasses.map((classItem) => [classItem.id, classItem]));
+    const usersById = new Map(allUsers.map((candidate) => [candidate._id, candidate]));
+    const assignmentsById = new Map(assignmentItems.map((assignment) => [assignment._id, assignment]));
+    const studentUsers = allUsers.filter(
+      (candidate) =>
+        candidate.role === "regular_student" || candidate.role === "administrative_student",
+    );
+    const studentIds = new Set(studentUsers.map((candidate) => candidate._id));
+    const relevantAttendance = allAttendance.filter((row) => studentIds.has(row.studentId));
+    const presentCount = relevantAttendance.filter((row) => row.status === "Present").length;
+    const attendanceRate =
+      relevantAttendance.length === 0 ? 0 : Math.round((presentCount / relevantAttendance.length) * 100);
+
+    const batchAcc = new Map<
+      string,
+      {
+        scoreSum: number;
+        scoreCount: number;
+        classAcc: Map<string, { scoreSum: number; scoreCount: number }>;
+        studentAcc: Map<string, { scoreSum: number; scoreCount: number }>;
+      }
+    >();
+
+    allSubmissions.forEach((submission) => {
+      if (typeof submission.score !== "number") {
+        return;
+      }
+      const assignment = assignmentsById.get(submission.assignmentId);
+      if (!assignment) {
+        return;
+      }
+      const classMeta = classMetaById.get(assignment.classId);
+      if (!classMeta) {
+        return;
+      }
+
+      const batchKey = classMeta.batch;
+      const score = submission.score;
+      const currentBatch = batchAcc.get(batchKey) ?? {
+        scoreSum: 0,
+        scoreCount: 0,
+        classAcc: new Map<string, { scoreSum: number; scoreCount: number }>(),
+        studentAcc: new Map<string, { scoreSum: number; scoreCount: number }>(),
+      };
+
+      currentBatch.scoreSum += score;
+      currentBatch.scoreCount += 1;
+
+      const currentClass = currentBatch.classAcc.get(assignment.classId) ?? {
+        scoreSum: 0,
+        scoreCount: 0,
+      };
+      currentClass.scoreSum += score;
+      currentClass.scoreCount += 1;
+      currentBatch.classAcc.set(assignment.classId, currentClass);
+
+      const student = usersById.get(submission.studentId);
+      if (student && classMetaById.get(student.classId)?.batch === batchKey) {
+        const currentStudent = currentBatch.studentAcc.get(student._id) ?? {
+          scoreSum: 0,
+          scoreCount: 0,
+        };
+        currentStudent.scoreSum += score;
+        currentStudent.scoreCount += 1;
+        currentBatch.studentAcc.set(student._id, currentStudent);
+      }
+
+      batchAcc.set(batchKey, currentBatch);
+    });
+
+    const batchSummaries = batches.map((batch) => {
+      const currentBatch = batchAcc.get(batch);
+      const averageScore =
+        !currentBatch || currentBatch.scoreCount === 0
+          ? 0
+          : Math.round(currentBatch.scoreSum / currentBatch.scoreCount);
+
+      const topClass = !currentBatch
+        ? null
+        : Array.from(currentBatch.classAcc.entries()).reduce<{
+            classId: string;
+            avg: number;
+          } | null>((best, [classId, values]) => {
+            if (values.scoreCount === 0) {
+              return best;
+            }
+            const avg = values.scoreSum / values.scoreCount;
+            if (!best || avg > best.avg) {
+              return { classId, avg };
+            }
+            return best;
+          }, null);
+
+      const topStudent = !currentBatch
+        ? null
+        : Array.from(currentBatch.studentAcc.entries()).reduce<{
+            studentId: string;
+            avg: number;
+          } | null>((best, [studentId, values]) => {
+            if (values.scoreCount === 0) {
+              return best;
+            }
+            const avg = values.scoreSum / values.scoreCount;
+            if (!best || avg > best.avg) {
+              return { studentId, avg };
+            }
+            return best;
+          }, null);
+
+      return {
+        batch,
+        averageScore,
+        topClass: topClass
+          ? {
+              label: classMetaById.get(topClass.classId)?.label ?? topClass.classId,
+              average: Math.round(topClass.avg),
+            }
+          : null,
+        topStudent: topStudent
+          ? {
+              name: usersById.get(topStudent.studentId)?.name ?? topStudent.studentId,
+              average: Math.round(topStudent.avg),
+            }
+          : null,
+      };
+    });
+
+    const recentAnnouncements = announcementItems.slice(0, 8).map((announcement) => ({
+      ...announcement,
+      classLabel: classMetaById.get(announcement.classId)?.label ?? announcement.classId,
+    }));
+
+    return {
+      totalStudents: studentUsers.length,
+      attendanceRate,
+      totalAnnouncements: announcementItems.length,
+      batchSummaries,
+      recentAnnouncements,
+    };
+  }, [
+    isSuperAdmin,
+    users.data,
+    attendance.data,
+    submissionRows.data,
+    assignmentItems,
+    announcementItems,
+  ]);
 
   if (isTeacher) {
     const ownedSubjectName =
@@ -269,22 +426,97 @@ export function DashboardPage({ user }: Props) {
     <div className="page">
       <div className="page-header">
         <h1>Dashboard</h1>
-        <p>Welcome back, {user.role === "super_admin" ? "Principal Anderson" : user.name}</p>
+        <p>Welcome back, {isSuperAdmin ? "Principal Anderson" : user.name}</p>
       </div>
-      <div className="stat-grid">
-        <Link className="stat-card clickable" to="/admin?tab=classes">
-          <h3>Total Classes</h3>
-          <strong>{user.role === "super_admin" ? superAdminClasses.length : 1}</strong>
-        </Link>
-        <Link className="stat-card clickable" to="/assignments">
-          <h3>Total Assignments</h3>
-          <strong>{assignmentItems.length}</strong>
-        </Link>
-        <Link className="stat-card clickable" to="/announcements">
-          <h3>Announcements</h3>
-          <strong>{announcementItems.length}</strong>
-        </Link>
-      </div>
+      {isSuperAdmin && superAdminInsights ? (
+        <>
+          <div className="stat-grid">
+            <Link className="stat-card clickable" to="/admin?tab=students">
+              <h3>Total Students</h3>
+              <strong>{superAdminInsights.totalStudents}</strong>
+            </Link>
+            <Link className="stat-card clickable" to="/attendance">
+              <h3>Attendance Rate</h3>
+              <strong>{superAdminInsights.attendanceRate}%</strong>
+            </Link>
+            <Link className="stat-card clickable" to="/admin?tab=classes">
+              <h3>Total Classes</h3>
+              <strong>{superAdminClasses.length}</strong>
+            </Link>
+            <Link className="stat-card clickable" to="/announcements">
+              <h3>Announcements</h3>
+              <strong>{superAdminInsights.totalAnnouncements}</strong>
+            </Link>
+          </div>
+
+          <div className="two-col">
+            <article className="panel">
+              <h2>Batch Performance Summary</h2>
+              <p>Average score, highest scoring class, and top student in each batch.</p>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Batch</th>
+                    <th>Average Score</th>
+                    <th>Highest Scoring Class</th>
+                    <th>Highest Scoring Student</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {superAdminInsights.batchSummaries.map((summary) => (
+                    <tr key={summary.batch}>
+                      <td>{summary.batch}</td>
+                      <td>{summary.averageScore}%</td>
+                      <td>
+                        {summary.topClass
+                          ? `${summary.topClass.label} (${summary.topClass.average}%)`
+                          : "-"}
+                      </td>
+                      <td>
+                        {summary.topStudent
+                          ? `${summary.topStudent.name} (${summary.topStudent.average}%)`
+                          : "-"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </article>
+
+            <article className="panel">
+              <h2>Recent Announcements</h2>
+              <p>Latest school-wide updates across all classes.</p>
+              <div className="stack-list">
+                {superAdminInsights.recentAnnouncements.map((announcement) => (
+                  <article key={announcement._id} className="item-card">
+                    <div className="row-between">
+                      <strong>{announcement.title}</strong>
+                      <span className="badge subtle">{announcement.classLabel}</span>
+                    </div>
+                    <p>{announcement.content}</p>
+                    <small>{new Date(announcement.createdAt).toLocaleString()}</small>
+                  </article>
+                ))}
+              </div>
+            </article>
+          </div>
+        </>
+      ) : (
+        <div className="stat-grid">
+          <Link className="stat-card clickable" to="/admin?tab=classes">
+            <h3>Total Classes</h3>
+            <strong>1</strong>
+          </Link>
+          <Link className="stat-card clickable" to="/assignments">
+            <h3>Total Assignments</h3>
+            <strong>{assignmentItems.length}</strong>
+          </Link>
+          <Link className="stat-card clickable" to="/announcements">
+            <h3>Announcements</h3>
+            <strong>{announcementItems.length}</strong>
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

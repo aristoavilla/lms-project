@@ -1,5 +1,10 @@
 import { useMemo, useState } from "react";
-import { useRanking, useSubjects, useUsers } from "../hooks/useLmsQueries";
+import {
+  useBatchClassOverallRanking,
+  useRanking,
+  useSubjects,
+  useUsers,
+} from "../hooks/useLmsQueries";
 import { batches, superAdminClasses } from "../data/superAdminCatalog";
 import type { User } from "../types";
 
@@ -10,6 +15,9 @@ interface Props {
 export function RankingPage({ user }: Props) {
   const [mainClassSubjectId, setMainClassSubjectId] = useState<string>("");
   const [teacherTab, setTeacherTab] = useState<"main_class" | "subject_class">("main_class");
+  const [superAdminTab, setSuperAdminTab] = useState<"overall_students" | "overall_classes">(
+    "overall_students",
+  );
   const [activeBatch, setActiveBatch] = useState<(typeof batches)[number]>("1st");
   const [selectedClassId, setSelectedClassId] = useState<string>(user.classId);
   const subjects = useSubjects(user);
@@ -26,15 +34,16 @@ export function RankingPage({ user }: Props) {
     [activeBatch],
   );
 
-  const safeClassId = isTeacher
-    ? (teacherClassIds.includes(selectedClassId) ? selectedClassId : teacherClassIds[0])
-    : (batchClasses.some((item) => item.id === selectedClassId)
-        ? selectedClassId
-        : batchClasses[0]?.id);
+  const safeTeacherClassId =
+    teacherClassIds.includes(selectedClassId) ? selectedClassId : teacherClassIds[0];
 
   const mainOverall = useRanking(user, undefined, user.classId);
   const mainBySubject = useRanking(user, mainClassSubjectId || undefined, user.classId);
-  const byOwnSubjectClass = useRanking(user, user.subjectId, safeClassId);
+  const byOwnSubjectClass = useRanking(user, user.subjectId, safeTeacherClassId);
+  const batchClassOverallQueries = useBatchClassOverallRanking(
+    user,
+    batchClasses.map((item) => item.id),
+  );
 
   const rankingItems = (() => {
     if (isTeacher) {
@@ -49,12 +58,69 @@ export function RankingPage({ user }: Props) {
   const classStudentIds = useMemo(
     () =>
       (users.data ?? [])
-        .filter((candidate) => candidate.classId === (effectiveTeacherTab === "main_class" ? user.classId : safeClassId))
+        .filter(
+          (candidate) =>
+            candidate.classId ===
+            (effectiveTeacherTab === "main_class" ? user.classId : safeTeacherClassId),
+        )
         .map((candidate) => candidate._id),
-    [users.data, safeClassId, effectiveTeacherTab, user.classId],
+    [users.data, safeTeacherClassId, effectiveTeacherTab, user.classId],
   );
 
   const filteredRanking = rankingItems.filter((item) => classStudentIds.includes(item.studentId));
+
+  const batchStudentOverallRanking = useMemo(() => {
+    if (isTeacher) {
+      return [];
+    }
+
+    const combined = batchClasses.flatMap((classItem, index) =>
+      (batchClassOverallQueries[index]?.data ?? []).map((item) => ({
+        ...item,
+        classId: classItem.id,
+        classLabel: classItem.label,
+      })),
+    );
+
+    return combined
+      .sort(
+        (a, b) =>
+          b.average - a.average ||
+          +new Date(a.earliestSubmissionAt) - +new Date(b.earliestSubmissionAt) ||
+          a.studentName.localeCompare(b.studentName),
+      )
+      .map((item, index) => ({ ...item, rank: index + 1 }));
+  }, [batchClassOverallQueries, batchClasses, isTeacher]);
+
+  const batchOverallRanking = useMemo(() => {
+    if (isTeacher) {
+      return [];
+    }
+
+    const byClass = batchClasses.map((classItem, index) => {
+      const studentRankings = batchClassOverallQueries[index]?.data ?? [];
+      const average =
+        studentRankings.length === 0
+          ? 0
+          : Math.round(
+              (studentRankings.reduce((sum, item) => sum + item.average, 0) /
+                studentRankings.length) *
+                100,
+            ) / 100;
+
+      return {
+        classId: classItem.id,
+        classLabel: classItem.label,
+        average,
+        studentCount: studentRankings.length,
+        topStudent: studentRankings[0]?.studentName ?? "-",
+      };
+    });
+
+    return byClass
+      .sort((a, b) => b.average - a.average || a.classLabel.localeCompare(b.classLabel))
+      .map((item, index) => ({ ...item, rank: index + 1 }));
+  }, [batchClassOverallQueries, batchClasses, isTeacher]);
 
   return (
     <div className="page">
@@ -119,7 +185,7 @@ export function RankingPage({ user }: Props) {
                   <button
                     key={classId}
                     type="button"
-                    className={classId === safeClassId ? "active" : ""}
+                    className={classId === safeTeacherClassId ? "active" : ""}
                     onClick={() => setSelectedClassId(classId)}
                   >
                     {classId.replace("class-", "Class ")}
@@ -131,6 +197,22 @@ export function RankingPage({ user }: Props) {
         </>
       ) : (
         <>
+          <div className="pill-nav">
+            <button
+              type="button"
+              className={superAdminTab === "overall_students" ? "active" : ""}
+              onClick={() => setSuperAdminTab("overall_students")}
+            >
+              Overall Students
+            </button>
+            <button
+              type="button"
+              className={superAdminTab === "overall_classes" ? "active" : ""}
+              onClick={() => setSuperAdminTab("overall_classes")}
+            >
+              Overall Classes
+            </button>
+          </div>
           <div className="pill-nav secondary">
             {batches.map((batch) => (
               <button
@@ -140,18 +222,6 @@ export function RankingPage({ user }: Props) {
                 onClick={() => setActiveBatch(batch)}
               >
                 {batch} Batch
-              </button>
-            ))}
-          </div>
-          <div className="pill-nav secondary">
-            {batchClasses.map((classItem) => (
-              <button
-                key={classItem.id}
-                type="button"
-                className={classItem.id === safeClassId ? "active" : ""}
-                onClick={() => setSelectedClassId(classItem.id)}
-              >
-                {classItem.label}
               </button>
             ))}
           </div>
@@ -166,40 +236,105 @@ export function RankingPage({ user }: Props) {
                 ? "Main Class Subject Ranking"
                 : "Main Class Overall Ranking"
               : `Your ${ownSubject?.name ?? "Subject"} Classes Rankings`
-            : "Ranking"}
+            : superAdminTab === "overall_students"
+              ? `Overall Students Ranking (${activeBatch} Batch)`
+              : `Overall Classes Ranking (${activeBatch} Batch)`}
         </h2>
         <table>
           <thead>
-            <tr>
-              <th>Rank</th>
-              <th>Student Name</th>
-              <th>Class</th>
-              <th>Average</th>
-              <th>Performance</th>
-            </tr>
+            {isTeacher || superAdminTab === "overall_students" ? (
+              <tr>
+                <th>Rank</th>
+                <th>Student Name</th>
+                <th>Class</th>
+                <th>Average</th>
+                <th>Performance</th>
+              </tr>
+            ) : (
+              <tr>
+                <th>Rank</th>
+                <th>Class</th>
+                <th>Class Average</th>
+                <th>Students Ranked</th>
+                <th>Top Student</th>
+              </tr>
+            )}
           </thead>
           <tbody>
-            {filteredRanking.map((item, index) => (
-              <tr key={item.studentId}>
-                <td>{index + 1}</td>
-                <td>{item.studentName}</td>
-                <td>{(effectiveTeacherTab === "main_class" ? user.classId : safeClassId).replace("class-", "")}</td>
-                <td>{item.average}%</td>
-                <td>
-                  {item.average >= 90
-                    ? "Outstanding"
-                    : item.average >= 80
-                      ? "Excellent"
-                      : item.average >= 70
-                        ? "Good"
-                        : "Needs support"}
-                </td>
-              </tr>
-            ))}
-            {filteredRanking.length === 0 && (
-              <tr>
-                <td colSpan={5}>No ranking data for this selection.</td>
-              </tr>
+            {isTeacher || superAdminTab === "overall_students" ? (
+              isTeacher ? (
+                <>
+                  {filteredRanking.map((item, index) => (
+                    <tr key={item.studentId}>
+                      <td>{index + 1}</td>
+                      <td>{item.studentName}</td>
+                      <td>
+                        {(effectiveTeacherTab === "main_class"
+                          ? user.classId
+                          : safeTeacherClassId
+                        ).replace("class-", "")}
+                      </td>
+                      <td>{item.average}%</td>
+                      <td>
+                        {item.average >= 90
+                          ? "Outstanding"
+                          : item.average >= 80
+                            ? "Excellent"
+                            : item.average >= 70
+                              ? "Good"
+                              : "Needs support"}
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredRanking.length === 0 && (
+                    <tr>
+                      <td colSpan={5}>No ranking data for this selection.</td>
+                    </tr>
+                  )}
+                </>
+              ) : (
+                <>
+                  {batchStudentOverallRanking.map((item) => (
+                    <tr key={item.studentId}>
+                      <td>{item.rank}</td>
+                      <td>{item.studentName}</td>
+                      <td>{item.classLabel.replace("Class ", "")}</td>
+                      <td>{item.average}%</td>
+                      <td>
+                        {item.average >= 90
+                          ? "Outstanding"
+                          : item.average >= 80
+                            ? "Excellent"
+                            : item.average >= 70
+                              ? "Good"
+                              : "Needs support"}
+                      </td>
+                    </tr>
+                  ))}
+                  {batchStudentOverallRanking.length === 0 && (
+                    <tr>
+                      <td colSpan={5}>No ranking data for this selection.</td>
+                    </tr>
+                  )}
+                </>
+              )
+            ) : (
+              <>
+                {batchOverallRanking.map((item) => (
+                  <tr key={item.classId}>
+                    <td>{item.rank}</td>
+                    <td>{item.classLabel}</td>
+                    <td>{item.average}%</td>
+                    <td>{item.studentCount}</td>
+                    <td>{item.topStudent}</td>
+                  </tr>
+                ))}
+                {batchOverallRanking.length === 0 && (
+                  <tr>
+                    <td colSpan={5}>No class ranking data for this batch.</td>
+                  </tr>
+                )}
+              </>
             )}
           </tbody>
         </table>

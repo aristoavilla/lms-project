@@ -16,6 +16,7 @@ interface Props {
 }
 
 type StudentTab = "focus" | "pending" | "graded" | "archived";
+type TeacherSubmissionFilter = "all" | "pending" | "graded" | "late";
 
 export function AssignmentsPage({ user }: Props) {
   const assignments = useAssignments(user);
@@ -36,6 +37,7 @@ export function AssignmentsPage({ user }: Props) {
   const [studentPayload, setStudentPayload] = useState("");
   const [archivedIds, setArchivedIds] = useState<string[]>([]);
   const [classFilter, setClassFilter] = useState("all");
+  const [submissionFilter, setSubmissionFilter] = useState<TeacherSubmissionFilter>("all");
   const [tableFlash, setTableFlash] = useState(false);
 
   const isTeacher = user.role === "main_teacher" || user.role === "specialized_teacher";
@@ -138,6 +140,32 @@ export function AssignmentsPage({ user }: Props) {
       (submission) => submission.studentId === user._id,
     );
 
+  const activeAssignmentSubmissions = activeAssignment
+    ? submissionsByAssignment.get(activeAssignment._id) ?? []
+    : [];
+
+  const filteredActiveSubmissions = activeAssignmentSubmissions.filter((submission) => {
+    if (submissionFilter === "pending") {
+      return typeof submission.score !== "number";
+    }
+    if (submissionFilter === "graded") {
+      return typeof submission.score === "number";
+    }
+    if (submissionFilter === "late") {
+      return submission.late;
+    }
+    return true;
+  });
+
+  const submissionSummary = {
+    total: activeAssignmentSubmissions.length,
+    pending: activeAssignmentSubmissions.filter((submission) => typeof submission.score !== "number")
+      .length,
+    graded: activeAssignmentSubmissions.filter((submission) => typeof submission.score === "number")
+      .length,
+    late: activeAssignmentSubmissions.filter((submission) => submission.late).length,
+  };
+
   if (assignments.isLoading) {
     return <p>Loading assignments...</p>;
   }
@@ -206,9 +234,11 @@ export function AssignmentsPage({ user }: Props) {
                 >
                   <div className="row-between">
                     <strong>{assignment.title}</strong>
-                    {typeof mine?.score === "number" && (
+                    {typeof mine?.score === "number" ? (
                       <span className="badge dark">Graded: {mine.score}%</span>
-                    )}
+                    ) : mine ? (
+                      <span className="badge warning">Submitted</span>
+                    ) : null}
                   </div>
                   <p>{assignment.description}</p>
                   <small>
@@ -248,6 +278,14 @@ export function AssignmentsPage({ user }: Props) {
             <p>Deadline: {new Date(activeAssignment.deadline).toLocaleString()}</p>
             <p>Instructions/Material: {activeAssignment.description}</p>
             <p>My Submission: {activeSubmission?.payload ?? "No submission yet."}</p>
+            <p>
+              Submission Status:{" "}
+              {activeSubmission
+                ? typeof activeSubmission.score === "number"
+                  ? "Submitted and graded"
+                  : "Submitted and pending review"
+                : "Not submitted"}
+            </p>
             <p>My Grade: {typeof activeSubmission?.score === "number" ? `${activeSubmission.score}%` : "Not graded yet"}</p>
             <p>Teacher Comment: {activeSubmission?.comment ?? "-"}</p>
 
@@ -259,6 +297,10 @@ export function AssignmentsPage({ user }: Props) {
                     assignmentId: activeAssignment._id,
                     payload: studentPayload,
                     submissionType: activeAssignment.assignmentType,
+                  }, {
+                    onSuccess: () => {
+                      setSearchParams({ tab: "pending" });
+                    },
                   });
                   setStudentPayload("");
                 }}
@@ -269,8 +311,19 @@ export function AssignmentsPage({ user }: Props) {
                   placeholder="Write your answer or attach file reference"
                   required
                 />
-                <button type="submit">Submit Assignment</button>
+                <button type="submit" disabled={submitAssignment.isPending}>
+                  {submitAssignment.isPending ? "Submitting..." : "Submit Assignment"}
+                </button>
               </form>
+            )}
+            {submitAssignment.isPending && <p className="muted-line">Submitting...</p>}
+            {submitAssignment.isSuccess && !activeSubmission && (
+              <p className="muted-line">Submission sent. This assignment will appear in Pending.</p>
+            )}
+            {submitAssignment.isError && (
+              <p className="muted-line">
+                Submission failed: {submitAssignment.error.message}
+              </p>
             )}
           </article>
         )}
@@ -351,38 +404,96 @@ export function AssignmentsPage({ user }: Props) {
 
       {activeAssignment && (
         <article className={`panel ${tableFlash ? "table-flash" : ""}`}>
-          <h2>{activeAssignment.title} Submissions</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Student</th>
-                <th>Submission</th>
-                <th>Grade</th>
-                <th>Teacher Comment</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(submissionsByAssignment.get(activeAssignment._id) ?? []).map((submission) => (
-                <tr key={submission._id}>
-                  <td>{userMap.get(submission.studentId)?.name ?? submission.studentId}</td>
-                  <td>{submission.payload}</td>
-                  <td>{typeof submission.score === "number" ? `${submission.score}%` : "-"}</td>
-                  <td>{submission.comment || "-"}</td>
-                  <td>{submission.late ? "Late" : "On time"}</td>
-                  <td>
-                    <Link to={`/submissions/${submission._id}`}>View Work</Link>
-                  </td>
-                </tr>
-              ))}
-              {(submissionsByAssignment.get(activeAssignment._id) ?? []).length === 0 && (
+          <div className="row-between">
+            <div>
+              <h2>{activeAssignment.title} Submissions</h2>
+              <p className="muted-line">
+                {subjectMap.get(activeAssignment.subjectId)?.name ?? activeAssignment.subjectId} | Due{" "}
+                {new Date(activeAssignment.deadline).toLocaleString()}
+              </p>
+            </div>
+            <div className="submission-summary">
+              <span className="badge subtle">Total: {submissionSummary.total}</span>
+              <span className="badge warning">Pending: {submissionSummary.pending}</span>
+              <span className="badge success">Graded: {submissionSummary.graded}</span>
+              <span className="badge danger">Late: {submissionSummary.late}</span>
+            </div>
+          </div>
+
+          <div className="pill-nav secondary">
+            <button
+              type="button"
+              className={submissionFilter === "all" ? "active" : ""}
+              onClick={() => setSubmissionFilter("all")}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              className={submissionFilter === "pending" ? "active" : ""}
+              onClick={() => setSubmissionFilter("pending")}
+            >
+              Pending
+            </button>
+            <button
+              type="button"
+              className={submissionFilter === "graded" ? "active" : ""}
+              onClick={() => setSubmissionFilter("graded")}
+            >
+              Graded
+            </button>
+            <button
+              type="button"
+              className={submissionFilter === "late" ? "active" : ""}
+              onClick={() => setSubmissionFilter("late")}
+            >
+              Late
+            </button>
+          </div>
+
+          <div className="submissions-table-wrap">
+            <table className="submissions-table">
+              <thead>
                 <tr>
-                  <td colSpan={6}>No submissions yet.</td>
+                  <th>Student</th>
+                  <th>Submission</th>
+                  <th>Grade</th>
+                  <th>Comment</th>
+                  <th>Status</th>
+                  <th>Action</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredActiveSubmissions.map((submission) => (
+                  <tr key={submission._id}>
+                    <td>{userMap.get(submission.studentId)?.name ?? submission.studentId}</td>
+                    <td className="cell-truncate">{submission.payload}</td>
+                    <td>
+                      {typeof submission.score === "number" ? (
+                        <span className="badge success">{submission.score}%</span>
+                      ) : (
+                        <span className="badge warning">Not graded</span>
+                      )}
+                    </td>
+                    <td className="cell-truncate">{submission.comment || "-"}</td>
+                    <td>
+                      <span className={`badge ${submission.late ? "danger" : "subtle"}`}>
+                        {submission.late ? "Late" : "On time"}
+                      </span>
+                    </td>
+                    <td>
+                      <Link to={`/submissions/${submission._id}`}>Open</Link>
+                    </td>
+                  </tr>
+                ))}
+                {filteredActiveSubmissions.length === 0 && (
+                  <tr>
+                    <td colSpan={6}>No submissions match this filter.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </article>
       )}
 
