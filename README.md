@@ -5,7 +5,7 @@ Single-school class-based LMS aligned to the provided PRD.
 ## Stack
 
 - Frontend: React + Vite + TypeScript
-- Data layer in UI runtime: React Query + in-memory mock service (`src/services/lmsService.ts`)
+- Data layer in UI runtime: React Query + Convex-backed service adapter with local fallback (`src/services/lmsService.ts`)
 - Backend model and RBAC rules: Convex functions under `convex/`
 
 ## Implemented PRD Areas
@@ -53,6 +53,15 @@ npm install
 npm run dev
 ```
 
+To enable Convex-backed runtime data, configure:
+
+```bash
+# .env.local
+VITE_CONVEX_URL=https://YOUR_DEPLOYMENT.convex.cloud
+```
+
+If `VITE_CONVEX_URL` is not set (or a Convex call fails), the app safely falls back to local seeded service behavior.
+
 ## Validate
 
 ```bash
@@ -63,7 +72,7 @@ npm run test
 
 ## Current Phase Notes
 
-- Convex auth (email/password, OAuth, registration flow, persistent auth session) is not wired into the runtime UI yet.
-- Runtime UI currently uses local seeded data/service for portfolio demo flow.
+- Runtime data now supports Convex-backed reads/writes for core LMS flows (users, assignments, announcements, attendance, submissions, rankings, admin actions), with local fallback for resiliency.
+- Chat remains local-service backed in this phase.
 - Multi-class (9 classes x 30 students) full production dataset and migration are not yet implemented.
 - Quiz auto-grading/manual grading flow is partially modeled but not fully surfaced as an end-to-end UI workflow.

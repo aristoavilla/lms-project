@@ -11,6 +11,8 @@
 import type * as announcements from "../announcements.js";
 import type * as assignments from "../assignments.js";
 import type * as attendance from "../attendance.js";
+import type * as chats from "../chats.js";
+import type * as client from "../client.js";
 import type * as lib_rbac from "../lib/rbac.js";
 import type * as rankings from "../rankings.js";
 import type * as users from "../users.js";
@@ -25,6 +27,8 @@ declare const fullApi: ApiFromModules<{
   announcements: typeof announcements;
   assignments: typeof assignments;
   attendance: typeof attendance;
+  chats: typeof chats;
+  client: typeof client;
   "lib/rbac": typeof lib_rbac;
   rankings: typeof rankings;
   users: typeof users;

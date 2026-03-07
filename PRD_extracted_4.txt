@@ -1,0 +1,167 @@
+PRODUCT REQUIREMENTS DOCUMENT (PRD)
+FEATURE MODULE: ACCOUNT MANAGEMENT, REAL-TIME CHAT & PROFILE SYSTEM
+This PRD defines ONLY the new feature modules added to the existing LMS system.
+Tech Stack (unchanged):- Frontend: React + Vite + TypeScript- Backend/DB/Auth: Convex- Data Fetching: React Query- File Storage: Convex File Storage- Real-time: Convex Subscriptions- Optimistic UI updates enabled
+Scope Context:- Single school- 9 classes (A, B, C per grade)- 30 students per class- Role-based system already implemented
+
+1. ACCOUNT & AUTHENTICATION SYSTEM
+1.1 Feature Objective
+Provide secure authentication and account lifecycle management fully integrated with Convex authentication and role validation.
+
+1.2 Registration
+Functional Requirements
+Users can register using:
+Email + Password
+OAuth provider
+Required fields:
+Full Name
+Email
+Password (if email-based)
+After registration:
+Account status =“Pending Approval”
+User cannot access system features until approved by Super Admin
+Email must be unique
+
+1.3 Login
+Functional Requirements
+Users can log in via:
+Email + Password
+OAuth
+On successful login:
+Session created via Convex Auth
+Role and approval status validated
+If account not approved:
+Show“Account Pending Approval”message
+Deny access to application routes
+Persistent login across devices supported
+
+1.4 Logout (Sign Out)
+User can sign out from any device
+Session token invalidated
+Redirect to login page
+
+1.5 Authorization Rules
+Backend must validate on every request:
+User is authenticated
+User is approved
+User belongs to correct class
+User has correct role for requested action
+No frontend-only authorization allowed.
+
+1.6 Account State Properties (Database: users)
+Required fields:- _id- name- email- role- classId- approved (boolean)- bio (optional)- profileImageId (optional)- createdAt
+
+1.7 Security Requirements
+Password hashing handled by auth provider
+Rate limiting for login attempts
+Prevent duplicate registrations
+Protect against session hijacking
+Secure token storage
+
+2. REAL-TIME CHAT SYSTEM
+2.1 Feature Objective
+Enable structured, real-time communication between users within the same class ecosystem while respecting role and class boundaries.
+
+2.2 Chat Types
+1. Class Group Chat
+One chat per class
+All approved users in the class are members
+2. Subject Group Chat
+One chat per subject per class
+Members:
+Students of the class
+Assigned specialized teacher
+3. Direct Message (1-on-1)
+Between two approved users in same class
+Auto-created on first message
+Cross-class messaging strictly forbidden.
+
+2.3 Functional Requirements
+Real-time message streaming (Convex subscription)
+Optimistic message sending
+Edit own message within 10 minutes
+Soft delete (“Message deleted”)
+File/image attachment support
+Unread message indicator
+Auto-scroll to newest message
+
+2.4 Chat Permissions
+All approved users can:- Send messages in chats they are members of- Edit/delete their own messages
+Super Admin:- Read-only moderation access to all chats
+Backend must validate:- User membership- Class consistency- Approval status
+
+2.5 Database Schema Additions
+chats
+_id
+type (“class”|“subject”|“direct”)
+classId
+subjectId (nullable)
+participantIds (for direct)
+createdAt
+messages
+_id
+chatId
+senderId
+content
+attachmentId (optional)
+createdAt
+editedAt (optional)
+deleted (boolean)
+
+2.6 Chat UI Requirements
+Chat Page Layout
+Sidebar:- Class Chat- Subject Chats- Direct Messages
+Main Panel:- Message list- Input field- Attachment button- Send button
+Additional Requirements:- Display sender name + profile picture- Edited indicator- Deleted message state- Loading skeleton
+
+3. PROFILE MANAGEMENT SYSTEM
+3.1 Feature Objective
+Allow users to manage personal profile information and upload profile images.
+
+3.2 Editable Fields
+Users can edit:- Full Name- Bio- Profile Picture
+Users cannot edit:- Email- Role- Class assignment
+
+3.3 Profile Picture Requirements
+Stored in Convex file storage
+Allowed formats: jpg, png, webp
+Max size: 2MB
+Replace old image on update
+Default avatar fallback
+
+3.4 Permissions
+Users:- Edit only their own profile- View profiles within same class
+Super Admin:- View all profiles
+Backend validates ownership before update.
+
+3.5 Database Schema Updates
+users (additional fields)
+bio (string, optional)
+profileImageId (file reference, optional)
+
+3.6 Profile UI Requirements
+Profile Page
+Sections:- Profile Picture Display- Basic Information- Edit Button- Save / Cancel controls
+Functional Requirements:- Image preview before save- Optimistic update for text changes- Loading indicator during file upload
+
+4. State Management & Data Flow
+React Query:- useQuery for auth state- useMutation for login/register/logout- useQuery for chat subscriptions- useMutation for send/edit/delete message- useMutation for profile update
+Convex:- Auth session handling- Real-time message subscriptions- Backend role validation- File validation- Membership validation
+
+5. Security Considerations
+Validate authentication on every request
+Prevent cross-class messaging
+Validate file type & size
+Prevent editing/deleting other users’ messages
+Sanitize chat content
+Protect against unauthorized profile updates
+
+6. Edge Cases
+Unapproved user attempts login
+User removed from class but has chat history
+Deleted user with messages
+Profile image removed (fallback avatar)
+Simultaneous message edits
+Network interruption during optimistic updates
+
+END OF FEATURE PRD

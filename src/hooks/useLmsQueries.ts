@@ -1,6 +1,15 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as lms from "../services/lmsService";
-import type { Announcement, AttendanceStatus, SubmissionType, User } from "../types";
+import type {
+  Announcement,
+  AttendanceStatus,
+  Chat,
+  ChatThread,
+  FileAsset,
+  Message,
+  SubmissionType,
+  User,
+} from "../types";
 
 export function useSubjects(user: User) {
   const classId = user.role === "super_admin" ? "" : user.classId;
@@ -168,4 +177,144 @@ export function useAdminActions(user: User) {
     onSettled: async () => queryClient.invalidateQueries(),
   });
   return { approve, assignRole, assignSubject };
+}
+
+export function useVisibleProfiles(user: User) {
+  return useQuery({
+    queryKey: ["profiles", user._id, user.role, user.classId],
+    queryFn: () => lms.listVisibleProfiles(user),
+  });
+}
+
+export function useUpdateProfile(user: User) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: {
+      name: string;
+      bio: string;
+      profileImage?: FileAsset | null;
+    }) => lms.updateOwnProfile(user, variables),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["users"] });
+      await queryClient.invalidateQueries({ queryKey: ["profiles"] });
+      await queryClient.invalidateQueries({ queryKey: ["chat-threads", user._id] });
+      await queryClient.invalidateQueries({ queryKey: ["chat-messages", user._id] });
+    },
+  });
+}
+
+export function useChatThreads(user: User) {
+  return useQuery<ChatThread[]>({
+    queryKey: ["chat-threads", user._id],
+    queryFn: () => lms.listChatThreadsForUser(user),
+    refetchInterval: 2500,
+  });
+}
+
+export function useChatMessages(user: User, chatId: string | null) {
+  return useQuery<Message[]>({
+    queryKey: ["chat-messages", user._id, chatId ?? "none"],
+    queryFn: () => {
+      if (!chatId) {
+        return Promise.resolve([]);
+      }
+      return lms.listMessagesForChat(user, chatId);
+    },
+    enabled: Boolean(chatId),
+    refetchInterval: 1800,
+  });
+}
+
+export function useMarkChatAsRead(user: User) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (chatId: string) => lms.markChatAsRead(user, chatId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["chat-threads", user._id] });
+    },
+  });
+}
+
+interface SendMessageInput {
+  chatId?: string;
+  type: Chat["type"];
+  classId: string;
+  subjectId?: string;
+  recipientUserId?: string;
+  content: string;
+  attachment?: FileAsset;
+}
+
+export function useSendMessage(user: User) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: SendMessageInput) => lms.sendMessage(user, variables),
+    onMutate: async (variables) => {
+      const targetKey = ["chat-messages", user._id, variables.chatId ?? "none"] as const;
+      await queryClient.cancelQueries({ queryKey: targetKey });
+      const previous = queryClient.getQueryData<Message[]>(targetKey);
+
+      if (variables.chatId) {
+        const optimisticMessage: Message = {
+          _id: `optimistic-${Date.now()}`,
+          chatId: variables.chatId,
+          senderId: user._id,
+          content: variables.content.trim() || "Attachment",
+          attachment: variables.attachment,
+          createdAt: new Date().toISOString(),
+          deleted: false,
+        };
+        queryClient.setQueryData<Message[]>(targetKey, (old) => [...(old ?? []), optimisticMessage]);
+      }
+
+      return { previous, targetKey };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous && context.targetKey) {
+        queryClient.setQueryData(context.targetKey, context.previous);
+      }
+    },
+    onSuccess: async (created) => {
+      await queryClient.invalidateQueries({ queryKey: ["chat-threads", user._id] });
+      await queryClient.invalidateQueries({ queryKey: ["chat-messages", user._id, created.chatId] });
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["chat-threads", user._id] });
+    },
+  });
+}
+
+export function useEditMessage(user: User, chatId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: { messageId: string; content: string }) =>
+      lms.editMessage(user, variables.messageId, variables.content),
+    onSuccess: async () => {
+      if (chatId) {
+        await queryClient.invalidateQueries({ queryKey: ["chat-messages", user._id, chatId] });
+      }
+      await queryClient.invalidateQueries({ queryKey: ["chat-threads", user._id] });
+    },
+  });
+}
+
+export function useDeleteMessage(user: User, chatId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (messageId: string) => lms.softDeleteMessage(user, messageId),
+    onSuccess: async () => {
+      if (chatId) {
+        await queryClient.invalidateQueries({ queryKey: ["chat-messages", user._id, chatId] });
+      }
+      await queryClient.invalidateQueries({ queryKey: ["chat-threads", user._id] });
+    },
+  });
+}
+
+export function useDirectContacts(user: User) {
+  return useQuery({
+    queryKey: ["chat-direct-contacts", user._id],
+    queryFn: () => lms.listDirectContacts(user),
+    enabled: user.role !== "super_admin",
+  });
 }

@@ -25,6 +25,10 @@ export interface User {
   classId: string;
   subjectId?: string;
   taughtClassIds?: string[];
+  bio?: string;
+  profileImageId?: string;
+  profileImageUrl?: string;
+  createdAt?: string;
 }
 
 export interface ClassRoom {
@@ -107,4 +111,40 @@ export interface RankedStudent {
   studentName: string;
   average: number;
   earliestSubmissionAt: string;
+}
+
+export interface FileAsset {
+  id: string;
+  name: string;
+  size: number;
+  mimeType: string;
+  url: string;
+}
+
+export interface Chat {
+  _id: string;
+  type: "class" | "subject" | "direct";
+  classId: string;
+  subjectId?: string;
+  participantIds?: string[];
+  lastMessageAt?: string;
+  createdAt: string;
+}
+
+export interface Message {
+  _id: string;
+  chatId: string;
+  senderId: string;
+  content: string;
+  attachment?: FileAsset;
+  createdAt: string;
+  editedAt?: string;
+  deleted: boolean;
+}
+
+export interface ChatThread {
+  chat: Chat;
+  title: string;
+  unreadCount: number;
+  lastMessageAt: string | null;
 }

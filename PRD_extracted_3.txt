@@ -1,0 +1,114 @@
+﻿PRODUCT REQUIREMENTS DOCUMENT (PRD)
+FEATURE MODULE: REAL-TIME CHAT & PROFILE MANAGEMENT
+This PRD defines ONLY the new feature modules added to the existing LMS system.
+Tech Stack (unchanged):- Frontend: React + Vite + TypeScript- Backend/DB/Auth: Convex- Data Fetching: React Query- File Storage: Convex File Storage- Real-time: Convex Subscriptions- Optimistic UI updates enabled
+Scope Context:- Single school- 9 classes (A, B, C per grade)- 30 students per class- Role-based system already implemented
+
+1. REAL-TIME CHAT SYSTEM
+1.1 Feature Objective
+Enable structured, real-time communication between users within the same class ecosystem while respecting existing role and class boundaries.
+Chat must be:- Real-time- Role-aware- Class-restricted- Secure at backend level
+
+1.2 Chat Types
+1. Class Group Chat
+One chat per class
+All approved users in the class are members
+Cannot be left manually
+2. Subject Group Chat
+One chat per subject per class
+Members:
+Students of the class
+Assigned specialized teacher
+Only accessible within that subject context
+3. Direct Message (1-on-1)
+Between two approved users in same class
+Automatically created on first message
+Private visibility (only participants)
+Cross-class messaging is strictly forbidden.
+
+1.3 Functional Requirements
+Real-time message streaming (Convex subscription)
+Optimistic UI when sending message
+Edit own message within 10 minutes
+Soft delete (message replaced withâ€œMessage deletedâ€)
+File/image attachment support
+Unread message indicator
+Auto-scroll to newest message
+
+1.4 Permissions
+All approved users can:- Send messages in chats they are members of- Edit their own messages (time-limited)- Delete their own messages (soft delete)
+Super Admin:- Read-only access to all chats for moderation
+Backend must validate:- User belongs to chat- User belongs to class- User is approved
+
+1.5 Database Schema Additions
+chats
+_id
+type (â€œclassâ€|â€œsubjectâ€|â€œdirectâ€)
+classId
+subjectId (nullable)
+participantIds (for direct chat only)
+createdAt
+messages
+_id
+chatId
+senderId
+content
+attachmentId (optional)
+createdAt
+editedAt (optional)
+deleted (boolean)
+
+1.6 UI Requirements
+Chat Page
+Layout:- Sidebar- Class Chat- Subject Chats- Direct Messages- Main Chat Window- Message list- Message input field- Attachment button- Send button
+Additional UI Requirements:- Show sender name + profile picture- Show edited indicator- Show deleted state- Loading skeletons for initial fetch
+
+2. PROFILE MANAGEMENT SYSTEM
+2.1 Feature Objective
+Allow users to manage their personal profile data and upload profile images.
+
+2.2 Editable Fields
+Users can edit:- Full Name- Bio (short description)- Profile Picture
+Users cannot edit:- Email- Role- Class assignment
+
+2.3 Profile Picture Requirements
+Stored in Convex file storage
+Image formats only (jpg, png, webp)
+Max size: 2MB
+Old image replaced on update
+Default avatar if none uploaded
+
+2.4 Permissions
+Users:- Edit only their own profile- View profiles of users within same class
+Super Admin:- View all profiles
+Backend must validate profile ownership before update.
+
+2.5 Database Schema Updates
+users (additional fields)
+bio (string, optional)
+profileImageId (file reference, optional)
+
+2.6 UI Requirements
+Profile Page
+Sections:- Profile Picture Display- Basic Information- Edit Button- Save / Cancel controls
+Functional Requirements:- Image preview before save- Optimistic update for text changes- Loading indicator during file upload
+
+3. State Management & Data Flow
+React Query:- useQuery for chat subscriptions- useMutation for send/edit/delete message- useMutation for profile update
+Convex:- Real-time message subscriptions- Backend role validation- File validation- Membership validation
+
+4. Security Considerations
+Validate chat membership before message operations
+Prevent cross-class messaging
+Validate file size and type on upload
+Prevent editing/deleting other usersâ€™ messages
+Sanitize chat content to prevent injection
+
+5. Edge Cases
+User removed from class but has existing chat history
+Deleted user with messages
+Profile image removed (fallback to default avatar)
+Simultaneous message edits
+Network interruption during optimistic updates
+
+END OF FEATURE PRD
