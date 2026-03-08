@@ -41,6 +41,20 @@ export default defineSchema({
     .index("by_external_id", ["externalId"])
     .index("by_class", ["classId"])
     .index("by_teacher", ["teacherId"]),
+  subjectTeachers: defineTable({
+    externalId: v.optional(v.string()),
+    externalClassId: v.optional(v.string()),
+    externalSubjectId: v.optional(v.string()),
+    externalTeacherId: v.optional(v.string()),
+    classId: v.id("class"),
+    subjectId: v.id("subjects"),
+    teacherId: v.id("users"),
+  })
+    .index("by_external_id", ["externalId"])
+    .index("by_class", ["classId"])
+    .index("by_subject", ["subjectId"])
+    .index("by_teacher", ["teacherId"])
+    .index("by_subject_teacher", ["subjectId", "teacherId"]),
   semesters: defineTable({
     externalId: v.optional(v.string()),
     name: v.string(),

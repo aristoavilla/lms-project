@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "seed:json:generate": "node scripts/generate-convex-seed-json.mjs",
+    "seed:convex:import": "node scripts/import-convex-seed.mjs"
   },
   "dependencies": {
     "@convex-dev/react-query": "^0.1.0",

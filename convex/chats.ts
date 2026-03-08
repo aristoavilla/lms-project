@@ -24,6 +24,12 @@ async function getMembers(ctx: Ctx, chat: Doc<"chats">): Promise<Id<"users">[]> 
   }
 
   const subject = chat.subjectId ? await ctx.db.get(chat.subjectId) : null;
+  const subjectTeachers = chat.subjectId
+    ? await ctx.db
+        .query("subjectTeachers")
+        .withIndex("by_subject", (q) => q.eq("subjectId", chat.subjectId as Id<"subjects">))
+        .collect()
+    : [];
   const students = await ctx.db
     .query("users")
     .filter((q) =>
@@ -41,6 +47,9 @@ async function getMembers(ctx: Ctx, chat: Doc<"chats">): Promise<Id<"users">[]> 
   const pool = new Set<Id<"users">>(students.map((row) => row._id));
   if (subject?.teacherId) {
     pool.add(subject.teacherId);
+  }
+  for (const mapping of subjectTeachers) {
+    pool.add(mapping.teacherId);
   }
   return Array.from(pool);
 }
@@ -132,7 +141,8 @@ export const send = mutation({
       if (!args.recipientId) {
         throw new Error("Direct message requires recipient.");
       }
-      const recipient = await ctx.db.get(args.recipientId);
+      const recipientId = args.recipientId;
+      const recipient = await ctx.db.get(recipientId);
       if (!recipient || !recipient.approved) {
         throw new Error("Recipient is not available.");
       }
@@ -150,7 +160,7 @@ export const send = mutation({
           chat.type === "direct" &&
           (chat.participantIds ?? []).length === 2 &&
           (chat.participantIds ?? []).includes(requester._id) &&
-          (chat.participantIds ?? []).includes(args.recipientId),
+            (chat.participantIds ?? []).includes(recipientId),
       );
 
       chatId =
@@ -158,7 +168,7 @@ export const send = mutation({
         (await ctx.db.insert("chats", {
           type: "direct",
           classId: requester.classId,
-          participantIds: [requester._id, args.recipientId],
+          participantIds: [requester._id, recipientId],
           createdAt: new Date().toISOString(),
         }));
     }

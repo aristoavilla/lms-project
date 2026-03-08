@@ -10,6 +10,59 @@ type Role =
 
 const DEFAULT_PASSWORD = "Password123!";
 
+const CLASS_CODES = ["1A", "1B", "1C", "2A", "2B", "2C", "3A", "3B", "3C"] as const;
+const SUBJECT_CATALOG = [
+  { key: "matematika", label: "Matematika" },
+  { key: "bahasa-indonesia", label: "Bahasa Indonesia" },
+  { key: "ipa", label: "IPA" },
+  { key: "bahasa-inggris", label: "Bahasa Inggris" },
+  { key: "sejarah", label: "Sejarah" },
+  { key: "informatika", label: "Informatika" },
+] as const;
+
+const INDONESIAN_FIRST_NAMES = [
+  "Ahmad", "Budi", "Rizky", "Dimas", "Fajar", "Andi", "Arif", "Bayu", "Rendra", "Wahyu",
+  "Ari", "Yoga", "Hendra", "Deni", "Rafi", "Ilham", "Reza", "Fikri", "Adit", "Eko",
+  "Rina", "Siti", "Dewi", "Ayu", "Nadia", "Putri", "Lestari", "Fitri", "Indah", "Maya",
+  "Wulan", "Nisa", "Amelia", "Rahma", "Kartika", "Citra", "Puspita", "Desi", "Nabila", "Tika",
+  "Salsa", "Novi", "Annisa", "Intan", "Niken", "Rara", "Yuni", "Tiara", "Vina", "Mila",
+] as const;
+
+const INDONESIAN_LAST_NAMES = [
+  "Saputra", "Pratama", "Wijaya", "Nugroho", "Santoso", "Setiawan", "Hidayat", "Permana", "Kusuma", "Firmansyah",
+  "Ramadhan", "Syahputra", "Maulana", "Utami", "Lestari", "Anggraini", "Sari", "Wati", "Handayani", "Puspitasari",
+  "Safitri", "Aulia", "Kurniawan", "Purnama", "Gunawan", "Pangestu", "Hermawan", "Saputri", "Rahmawati", "Iskandar",
+] as const;
+
+function slugifyName(name: string) {
+  return name.toLowerCase().replace(/[^a-z\s]/g, "").trim().replace(/\s+/g, ".");
+}
+
+function createUniqueNameGenerator() {
+  let index = 0;
+  const seen = new Set<string>();
+  return () => {
+    while (index < INDONESIAN_FIRST_NAMES.length * INDONESIAN_LAST_NAMES.length) {
+      const first = INDONESIAN_FIRST_NAMES[Math.floor(index / INDONESIAN_LAST_NAMES.length)];
+      const last = INDONESIAN_LAST_NAMES[index % INDONESIAN_LAST_NAMES.length];
+      index += 1;
+      const fullName = `${first} ${last}`;
+      if (!seen.has(fullName)) {
+        seen.add(fullName);
+        return fullName;
+      }
+    }
+    throw new Error("Name pool exhausted. Add more Indonesian names.");
+  };
+}
+
+async function clearTable(ctx: any, tableName: string) {
+  const rows = await ctx.db.query(tableName).collect();
+  for (const row of rows) {
+    await ctx.db.delete(row._id);
+  }
+}
+
 function isStudent(role: Role) {
   return role === "regular_student" || role === "administrative_student";
 }
@@ -30,52 +83,52 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
-async function getUserByExternalId(ctx: any, externalId: string) {
+async function getUserByExternalId(ctx: any, externalId: string): Promise<any> {
   return await ctx.db
     .query("users")
-    .withIndex("by_external_id", (q) => q.eq("externalId", externalId))
+    .withIndex("by_external_id", (q: any) => q.eq("externalId", externalId))
     .first();
 }
 
-async function getClassByExternalId(ctx: any, externalId: string) {
+async function getClassByExternalId(ctx: any, externalId: string): Promise<any> {
   return await ctx.db
     .query("class")
-    .withIndex("by_external_id", (q) => q.eq("externalId", externalId))
+    .withIndex("by_external_id", (q: any) => q.eq("externalId", externalId))
     .first();
 }
 
-async function getSubjectByExternalId(ctx: any, externalId: string) {
+async function getSubjectByExternalId(ctx: any, externalId: string): Promise<any> {
   return await ctx.db
     .query("subjects")
-    .withIndex("by_external_id", (q) => q.eq("externalId", externalId))
+    .withIndex("by_external_id", (q: any) => q.eq("externalId", externalId))
     .first();
 }
 
-async function getSemesterByExternalId(ctx: any, externalId: string) {
+async function getSemesterByExternalId(ctx: any, externalId: string): Promise<any> {
   return await ctx.db
     .query("semesters")
-    .withIndex("by_external_id", (q) => q.eq("externalId", externalId))
+    .withIndex("by_external_id", (q: any) => q.eq("externalId", externalId))
     .first();
 }
 
-async function getAssignmentByExternalId(ctx: any, externalId: string) {
+async function getAssignmentByExternalId(ctx: any, externalId: string): Promise<any> {
   return await ctx.db
     .query("assignments")
-    .withIndex("by_external_id", (q) => q.eq("externalId", externalId))
+    .withIndex("by_external_id", (q: any) => q.eq("externalId", externalId))
     .first();
 }
 
-async function getAnnouncementByExternalId(ctx: any, externalId: string) {
+async function getAnnouncementByExternalId(ctx: any, externalId: string): Promise<any> {
   return await ctx.db
     .query("announcements")
-    .withIndex("by_external_id", (q) => q.eq("externalId", externalId))
+    .withIndex("by_external_id", (q: any) => q.eq("externalId", externalId))
     .first();
 }
 
-async function getSubmissionByExternalId(ctx: any, externalId: string) {
+async function getSubmissionByExternalId(ctx: any, externalId: string): Promise<any> {
   return await ctx.db
     .query("submissions")
-    .withIndex("by_external_id", (q) => q.eq("externalId", externalId))
+    .withIndex("by_external_id", (q: any) => q.eq("externalId", externalId))
     .first();
 }
 
@@ -164,18 +217,90 @@ function toSubmissionDto(submission: {
 export const ensureSeeded = mutation({
   args: {},
   handler: async (ctx) => {
-    const existing = await ctx.db
-      .query("users")
-      .withIndex("by_external_id", (q) => q.eq("externalId", "u-super-1"))
-      .first();
-    if (existing) {
+    const allUsers = await ctx.db.query("users").collect();
+    const allClasses = await ctx.db.query("class").collect();
+    const allSubjectTeachers = await ctx.db.query("subjectTeachers").collect();
+
+    const studentCount = allUsers.filter(
+      (row: any) => row.role === "regular_student" || row.role === "administrative_student",
+    ).length;
+
+    if (allClasses.length === 9 && studentCount === 270 && allSubjectTeachers.length >= 108) {
       return { seeded: false };
     }
 
-    const class1A = await ctx.db.insert("class", {
-      externalId: "class-1A",
-      name: "Class 1A",
-    });
+    // Reset all app tables when data is partial or outdated.
+    await clearTable(ctx, "messages");
+    await clearTable(ctx, "chats");
+    await clearTable(ctx, "attendance");
+    await clearTable(ctx, "submissions");
+    await clearTable(ctx, "assignments");
+    await clearTable(ctx, "announcements");
+    await clearTable(ctx, "subjectTeachers");
+    await clearTable(ctx, "subjects");
+    await clearTable(ctx, "users");
+    await clearTable(ctx, "semesters");
+    await clearTable(ctx, "class");
+
+    const classByExternalId = new Map<string, any>();
+    const mainTeacherByClassExternal = new Map<string, string>();
+    const userDocIdByExternalId = new Map<string, any>();
+    const studentsByClassExternal = new Map<string, Array<{ userId: any; externalId: string; name: string }>>();
+    const teacherSubjectExternalIds = new Map<string, string[]>();
+    const teacherSubjectDocIds = new Map<string, any[]>();
+    const teacherClassExternalIds = new Map<string, Set<string>>();
+    const allTeacherExternalIds: string[] = [];
+    const seededSubjects: Array<{
+      subjectId: any;
+      externalId: string;
+      classExternalId: string;
+      name: string;
+      primaryTeacherExternalId: string;
+      coTeacherExternalId: string;
+    }> = [];
+
+    const nextName = createUniqueNameGenerator();
+    const emailCounter = new Map<string, number>();
+
+    const createEmail = (name: string, bucket: string) => {
+      const base = `${slugifyName(name)}.${bucket.toLowerCase()}`;
+      const count = (emailCounter.get(base) ?? 0) + 1;
+      emailCounter.set(base, count);
+      return `${base}${count}@school.edu`;
+    };
+
+    const markTeacherSubject = (
+      teacherExternalId: string,
+      subjectExternalId: string,
+      subjectId: any,
+      classExternalId: string,
+    ) => {
+      const subjectExternalIds = teacherSubjectExternalIds.get(teacherExternalId) ?? [];
+      if (!subjectExternalIds.includes(subjectExternalId)) {
+        subjectExternalIds.push(subjectExternalId);
+      }
+      teacherSubjectExternalIds.set(teacherExternalId, subjectExternalIds);
+
+      const subjectDocIds = teacherSubjectDocIds.get(teacherExternalId) ?? [];
+      if (!subjectDocIds.includes(subjectId)) {
+        subjectDocIds.push(subjectId);
+      }
+      teacherSubjectDocIds.set(teacherExternalId, subjectDocIds);
+
+      const taughtClasses = teacherClassExternalIds.get(teacherExternalId) ?? new Set<string>();
+      taughtClasses.add(classExternalId);
+      teacherClassExternalIds.set(teacherExternalId, taughtClasses);
+    };
+
+    for (const classCode of CLASS_CODES) {
+      const externalClassId = `class-${classCode}`;
+      const classId = await ctx.db.insert("class", {
+        externalId: externalClassId,
+        name: `Class ${classCode}`,
+      });
+      classByExternalId.set(externalClassId, classId);
+      studentsByClassExternal.set(externalClassId, []);
+    }
 
     const sem1 = await ctx.db.insert("semesters", {
       externalId: "sem-1-2026",
@@ -184,150 +309,720 @@ export const ensureSeeded = mutation({
       endDate: "2026-06-30",
     });
 
+    await ctx.db.insert("semesters", {
+      externalId: "sem-2-2026",
+      name: "Semester 2 2026",
+      startDate: "2026-07-15",
+      endDate: "2026-12-15",
+    });
+
+    const superAdminClassExternal = "class-1A";
     const superAdminId = await ctx.db.insert("users", {
       externalId: "u-super-1",
-      name: "Super Admin",
+      name: "Budi Santoso",
       email: "admin@school.edu",
       password: DEFAULT_PASSWORD,
       role: "super_admin",
       approved: true,
-      classId: class1A,
-      externalClassId: "class-1A",
-      bio: "",
+      classId: classByExternalId.get(superAdminClassExternal),
+      externalClassId: superAdminClassExternal,
+      bio: "Super administrator sistem LMS.",
     });
+    userDocIdByExternalId.set("u-super-1", superAdminId);
 
-    await ctx.db.patch(class1A, { mainTeacherId: superAdminId });
+    const specializedTeacherExternalIds: string[] = [];
 
-    const mainTeacherId = await ctx.db.insert("users", {
-      externalId: "u-main-1",
-      name: "Mrs. Johnson",
-      email: "johnson@school.edu",
-      password: DEFAULT_PASSWORD,
-      role: "main_teacher",
-      approved: true,
-      classId: class1A,
-      externalClassId: "class-1A",
-      externalSubjectId: "subject-math",
-      externalTaughtClassIds: ["class-1A"],
-      bio: "",
-    });
-
-    const specializedTeacherId = await ctx.db.insert("users", {
-      externalId: "u-spec-10",
-      name: "Ms. Clarke",
-      email: "clarke@school.edu",
-      password: DEFAULT_PASSWORD,
-      role: "specialized_teacher",
-      approved: true,
-      classId: class1A,
-      externalClassId: "class-1A",
-      externalSubjectId: "subject-physics",
-      externalTaughtClassIds: ["class-1A"],
-      bio: "",
-    });
-
-    const studentId = await ctx.db.insert("users", {
-      externalId: "u-student-1a-1",
-      name: "Student 1A-1",
-      email: "student.1a.1@school.edu",
-      password: DEFAULT_PASSWORD,
-      role: "regular_student",
-      approved: true,
-      classId: class1A,
-      externalClassId: "class-1A",
-      bio: "",
-    });
-
-    await ctx.db.insert("users", {
-      externalId: "u-admin-student-1a-1",
-      name: "Admin Student 1A-1",
-      email: "admin.student.1a.1@school.edu",
-      password: DEFAULT_PASSWORD,
-      role: "administrative_student",
-      approved: true,
-      classId: class1A,
-      externalClassId: "class-1A",
-      bio: "",
-    });
-
-    const subjectDefs = [
-      { id: "subject-math", name: "Math", teacherId: mainTeacherId },
-      { id: "subject-english", name: "English", teacherId: mainTeacherId },
-      { id: "subject-chemistry", name: "Chemistry", teacherId: mainTeacherId },
-      { id: "subject-physics", name: "Physics", teacherId: specializedTeacherId },
-      { id: "subject-biology", name: "Biology", teacherId: specializedTeacherId },
-      { id: "subject-history", name: "History", teacherId: specializedTeacherId },
-    ] as const;
-
-    const subjectIdMap = new Map<string, string>();
-    for (const subjectDef of subjectDefs) {
-      const createdId = await ctx.db.insert("subjects", {
-        externalId: subjectDef.id,
-        name: subjectDef.name,
-        classId: class1A,
-        externalClassId: "class-1A",
-        teacherId: subjectDef.teacherId,
+    for (const classCode of CLASS_CODES) {
+      const externalClassId = `class-${classCode}`;
+      const mainTeacherExternalId = `u-main-${classCode.toLowerCase()}`;
+      const mainTeacherName = nextName();
+      const mainTeacherId = await ctx.db.insert("users", {
+        externalId: mainTeacherExternalId,
+        name: mainTeacherName,
+        email: createEmail(mainTeacherName, `main.${classCode}`),
+        password: DEFAULT_PASSWORD,
+        role: "main_teacher",
+        approved: true,
+        classId: classByExternalId.get(externalClassId),
+        externalClassId,
+        externalTaughtClassIds: [externalClassId],
+        bio: "Wali kelas dan pengajar utama.",
       });
-      subjectIdMap.set(subjectDef.id, createdId);
+      userDocIdByExternalId.set(mainTeacherExternalId, mainTeacherId);
+      mainTeacherByClassExternal.set(externalClassId, mainTeacherExternalId);
+      allTeacherExternalIds.push(mainTeacherExternalId);
+      teacherClassExternalIds.set(mainTeacherExternalId, new Set([externalClassId]));
+      await ctx.db.patch(classByExternalId.get(externalClassId), { mainTeacherId: mainTeacherId });
     }
 
-    const assignmentId = await ctx.db.insert("assignments", {
-      externalId: "as-math-1",
-      externalSubjectId: "subject-math",
-      externalClassId: "class-1A",
-      externalSemesterId: "sem-1-2026",
-      externalCreatedBy: "u-main-1",
-      assignmentType: "file",
-      subjectId: subjectIdMap.get("subject-math") as never,
-      semesterId: sem1,
-      title: "Linear Equations Worksheet",
-      description: "Complete worksheet and submit before deadline.",
-      deadline: "2026-03-12T23:59:00.000Z",
-      allowLate: true,
-      allowResubmit: true,
-      totalScore: 100,
-      createdBy: mainTeacherId,
-    });
+    for (let i = 0; i < 12; i += 1) {
+      const classCode = CLASS_CODES[i % CLASS_CODES.length];
+      const externalClassId = `class-${classCode}`;
+      const externalId = `u-spec-${String(i + 1).padStart(2, "0")}`;
+      const name = nextName();
+      const userId = await ctx.db.insert("users", {
+        externalId,
+        name,
+        email: createEmail(name, `spec.${i + 1}`),
+        password: DEFAULT_PASSWORD,
+        role: "specialized_teacher",
+        approved: true,
+        classId: classByExternalId.get(externalClassId),
+        externalClassId,
+        externalTaughtClassIds: [externalClassId],
+        bio: "Guru mata pelajaran lintas kelas.",
+      });
+      userDocIdByExternalId.set(externalId, userId);
+      specializedTeacherExternalIds.push(externalId);
+      allTeacherExternalIds.push(externalId);
+      teacherClassExternalIds.set(externalId, new Set([externalClassId]));
+    }
 
-    await ctx.db.insert("submissions", {
-      externalId: "subm-as-math-1-u-student-1a-1",
-      externalAssignmentId: "as-math-1",
-      externalStudentId: "u-student-1a-1",
-      submissionType: "file",
-      payload: "as-math-1-u-student-1a-1.pdf",
-      assignmentId,
-      studentId,
-      submittedAt: new Date().toISOString(),
-      late: false,
-      score: 82,
-      comment: "Good work.",
-    });
+    for (const classCode of CLASS_CODES) {
+      const externalClassId = `class-${classCode}`;
+      const classStudents = studentsByClassExternal.get(externalClassId) ?? [];
 
-    await ctx.db.insert("announcements", {
-      externalId: "ann-class-1A-1",
-      externalCreatedBy: "u-main-1",
-      externalClassId: "class-1A",
-      title: "Weekly update for 1A",
-      content: "Please review assignment deadlines and attendance updates.",
-      createdBy: mainTeacherId,
-      createdAt: new Date().toISOString(),
-      classId: class1A,
-    });
+      for (let n = 1; n <= 30; n += 1) {
+        const role: Role = n % 10 === 0 ? "administrative_student" : "regular_student";
+        const externalId = `${role === "administrative_student" ? "u-admin-student" : "u-student"}-${classCode.toLowerCase()}-${String(n).padStart(2, "0")}`;
+        const name = nextName();
+        const studentId = await ctx.db.insert("users", {
+          externalId,
+          name,
+          email: createEmail(name, `student.${classCode}`),
+          password: DEFAULT_PASSWORD,
+          role,
+          approved: true,
+          classId: classByExternalId.get(externalClassId),
+          externalClassId,
+          bio: "Siswa aktif pada tahun ajaran 2026.",
+        });
+        userDocIdByExternalId.set(externalId, studentId);
+        classStudents.push({ userId: studentId, externalId, name });
+      }
+      studentsByClassExternal.set(externalClassId, classStudents);
+    }
 
-    await ctx.db.insert("attendance", {
-      externalId: "att-class-1A-u-student-1a-1-1",
-      externalSubjectId: "subject-math",
-      externalClassId: "class-1A",
-      externalSemesterId: "sem-1-2026",
-      externalStudentId: "u-student-1a-1",
-      subjectId: subjectIdMap.get("subject-math") as never,
-      semesterId: sem1,
-      studentId,
-      date: new Date().toISOString().slice(0, 10),
-      status: "Present",
-    });
+    for (let classIndex = 0; classIndex < CLASS_CODES.length; classIndex += 1) {
+      const classCode = CLASS_CODES[classIndex];
+      const externalClassId = `class-${classCode}`;
+      const mainTeacherExternalId = mainTeacherByClassExternal.get(externalClassId) as string;
+
+      for (let subjectIndex = 0; subjectIndex < SUBJECT_CATALOG.length; subjectIndex += 1) {
+        const subjectMeta = SUBJECT_CATALOG[subjectIndex];
+        const subjectExternalId = `subject-${subjectMeta.key}-${classCode.toLowerCase()}`;
+        const primaryTeacherExternalId =
+          subjectIndex < 3
+            ? mainTeacherExternalId
+            : specializedTeacherExternalIds[(classIndex + subjectIndex) % specializedTeacherExternalIds.length];
+        const primaryTeacherId = userDocIdByExternalId.get(primaryTeacherExternalId);
+
+        const subjectId = await ctx.db.insert("subjects", {
+          externalId: subjectExternalId,
+          name: subjectMeta.label,
+          classId: classByExternalId.get(externalClassId),
+          externalClassId,
+          teacherId: primaryTeacherId,
+        });
+
+        await ctx.db.insert("subjectTeachers", {
+          externalId: `st-${subjectExternalId}-${primaryTeacherExternalId}`,
+          externalClassId,
+          externalSubjectId: subjectExternalId,
+          externalTeacherId: primaryTeacherExternalId,
+          classId: classByExternalId.get(externalClassId),
+          subjectId,
+          teacherId: primaryTeacherId,
+        });
+        markTeacherSubject(primaryTeacherExternalId, subjectExternalId, subjectId, externalClassId);
+
+        const coTeacherExternalId =
+          subjectIndex < 3
+            ? specializedTeacherExternalIds[(classIndex + subjectIndex + 2) % specializedTeacherExternalIds.length]
+            : mainTeacherExternalId;
+        if (coTeacherExternalId !== primaryTeacherExternalId) {
+          await ctx.db.insert("subjectTeachers", {
+            externalId: `st-${subjectExternalId}-${coTeacherExternalId}`,
+            externalClassId,
+            externalSubjectId: subjectExternalId,
+            externalTeacherId: coTeacherExternalId,
+            classId: classByExternalId.get(externalClassId),
+            subjectId,
+            teacherId: userDocIdByExternalId.get(coTeacherExternalId),
+          });
+          markTeacherSubject(coTeacherExternalId, subjectExternalId, subjectId, externalClassId);
+        }
+
+        seededSubjects.push({
+          subjectId,
+          externalId: subjectExternalId,
+          classExternalId: externalClassId,
+          name: subjectMeta.label,
+          primaryTeacherExternalId,
+          coTeacherExternalId,
+        });
+      }
+    }
+
+    for (let i = 0; i < allTeacherExternalIds.length; i += 1) {
+      const teacherExternalId = allTeacherExternalIds[i];
+      const subjectExternalIds = teacherSubjectExternalIds.get(teacherExternalId) ?? [];
+      if (subjectExternalIds.length > 0) {
+        continue;
+      }
+      const fallbackClassExternalId = `class-${CLASS_CODES[i % CLASS_CODES.length]}`;
+      const fallbackSubject = seededSubjects.find((row) => row.classExternalId === fallbackClassExternalId);
+      if (!fallbackSubject) {
+        continue;
+      }
+      await ctx.db.insert("subjectTeachers", {
+        externalId: `st-${fallbackSubject.externalId}-${teacherExternalId}`,
+        externalClassId: fallbackClassExternalId,
+        externalSubjectId: fallbackSubject.externalId,
+        externalTeacherId: teacherExternalId,
+        classId: classByExternalId.get(fallbackClassExternalId),
+        subjectId: fallbackSubject.subjectId,
+        teacherId: userDocIdByExternalId.get(teacherExternalId),
+      });
+      markTeacherSubject(
+        teacherExternalId,
+        fallbackSubject.externalId,
+        fallbackSubject.subjectId,
+        fallbackClassExternalId,
+      );
+    }
+
+    for (const teacherExternalId of allTeacherExternalIds) {
+      const teacherId = userDocIdByExternalId.get(teacherExternalId);
+      const subjectExternalIds = teacherSubjectExternalIds.get(teacherExternalId) ?? [];
+      const subjectDocIds = teacherSubjectDocIds.get(teacherExternalId) ?? [];
+      const taughtClassExternalIds = Array.from(teacherClassExternalIds.get(teacherExternalId) ?? new Set<string>());
+
+      await ctx.db.patch(teacherId, {
+        externalSubjectId: subjectExternalIds[0],
+        subjectIds: subjectDocIds,
+        externalTaughtClassIds: taughtClassExternalIds,
+      });
+    }
+
+    const now = Date.now();
+    for (let i = 0; i < seededSubjects.length; i += 1) {
+      const subject = seededSubjects[i];
+      const assignmentExternalId = `as-${subject.externalId}-1`;
+      const assignmentId = await ctx.db.insert("assignments", {
+        externalId: assignmentExternalId,
+        externalSubjectId: subject.externalId,
+        externalClassId: subject.classExternalId,
+        externalSemesterId: "sem-1-2026",
+        externalCreatedBy: subject.primaryTeacherExternalId,
+        assignmentType: "text",
+        subjectId: subject.subjectId,
+        semesterId: sem1,
+        title: `Tugas ${subject.name} ${subject.classExternalId.replace("class-", "")}`,
+        description: `Kerjakan latihan ${subject.name} dan kumpulkan tepat waktu.`,
+        deadline: "2026-04-15T23:59:00.000Z",
+        allowLate: true,
+        allowResubmit: true,
+        totalScore: 100,
+        createdBy: userDocIdByExternalId.get(subject.primaryTeacherExternalId),
+      });
+
+      const classStudents = studentsByClassExternal.get(subject.classExternalId) ?? [];
+      for (let s = 0; s < Math.min(10, classStudents.length); s += 1) {
+        const student = classStudents[s];
+        await ctx.db.insert("submissions", {
+          externalId: `subm-${assignmentExternalId}-${student.externalId}`,
+          externalAssignmentId: assignmentExternalId,
+          externalStudentId: student.externalId,
+          submissionType: "text",
+          payload: `Jawaban tugas oleh ${student.name}`,
+          assignmentId,
+          studentId: student.userId,
+          submittedAt: new Date(now - (s + i) * 3600_000).toISOString(),
+          late: false,
+          score: 70 + ((s * 3 + i) % 31),
+          comment: "Sudah cukup baik, tingkatkan konsistensi.",
+        });
+      }
+    }
+
+    for (let i = 0; i < seededSubjects.length; i += 1) {
+      const subject = seededSubjects[i];
+      const classStudents = studentsByClassExternal.get(subject.classExternalId) ?? [];
+      const date = `2026-03-${String((i % 20) + 1).padStart(2, "0")}`;
+      for (let s = 0; s < Math.min(15, classStudents.length); s += 1) {
+        const student = classStudents[s];
+        const status = s % 9 === 0 ? "Excused" : s % 5 === 0 ? "Absent" : "Present";
+        await ctx.db.insert("attendance", {
+          externalId: `att-${subject.externalId}-${student.externalId}-${date}`,
+          externalSubjectId: subject.externalId,
+          externalClassId: subject.classExternalId,
+          externalSemesterId: "sem-1-2026",
+          externalStudentId: student.externalId,
+          subjectId: subject.subjectId,
+          semesterId: sem1,
+          studentId: student.userId,
+          date,
+          status,
+        });
+      }
+    }
+
+    for (const classCode of CLASS_CODES) {
+      const externalClassId = `class-${classCode}`;
+      const mainTeacherExternalId = mainTeacherByClassExternal.get(externalClassId) as string;
+
+      for (let n = 1; n <= 2; n += 1) {
+        await ctx.db.insert("announcements", {
+          externalId: `ann-${externalClassId}-${n}`,
+          externalCreatedBy: mainTeacherExternalId,
+          externalClassId,
+          title: `Pengumuman ${n} Kelas ${classCode}`,
+          content: `Informasi akademik kelas ${classCode} untuk pekan ke-${n}.`,
+          createdBy: userDocIdByExternalId.get(mainTeacherExternalId),
+          createdAt: new Date(now - n * 86_400_000).toISOString(),
+          classId: classByExternalId.get(externalClassId),
+        });
+      }
+    }
+
+    const classChatIdByExternal = new Map<string, any>();
+    for (const classCode of CLASS_CODES) {
+      const externalClassId = `class-${classCode}`;
+      const classChatId = await ctx.db.insert("chats", {
+        externalId: `chat-class-${classCode.toLowerCase()}`,
+        externalClassId,
+        type: "class",
+        classId: classByExternalId.get(externalClassId),
+        createdAt: new Date(now - 10_000).toISOString(),
+      });
+      classChatIdByExternal.set(externalClassId, classChatId);
+    }
+
+    for (const subject of seededSubjects) {
+      await ctx.db.insert("chats", {
+        externalId: `chat-subject-${subject.externalId}`,
+        externalClassId: subject.classExternalId,
+        externalSubjectId: subject.externalId,
+        type: "subject",
+        classId: classByExternalId.get(subject.classExternalId),
+        subjectId: subject.subjectId,
+        createdAt: new Date(now - 8_000).toISOString(),
+      });
+    }
+
+    for (const classCode of CLASS_CODES) {
+      const externalClassId = `class-${classCode}`;
+      const classStudents = studentsByClassExternal.get(externalClassId) ?? [];
+      const firstStudent = classStudents[0];
+      if (!firstStudent) {
+        continue;
+      }
+      const mainTeacherExternalId = mainTeacherByClassExternal.get(externalClassId) as string;
+      await ctx.db.insert("chats", {
+        externalId: `chat-direct-${classCode.toLowerCase()}-1`,
+        externalClassId,
+        externalParticipantIds: [mainTeacherExternalId, firstStudent.externalId],
+        type: "direct",
+        classId: classByExternalId.get(externalClassId),
+        participantIds: [userDocIdByExternalId.get(mainTeacherExternalId), firstStudent.userId],
+        createdAt: new Date(now - 7_000).toISOString(),
+      });
+    }
+
+    const allChats = await ctx.db.query("chats").collect();
+    for (let i = 0; i < allChats.length; i += 1) {
+      const chat = allChats[i];
+      if (chat.type === "class") {
+        const classCode = (chat.externalClassId ?? "class-1A").replace("class-", "");
+        const mainTeacherExternalId = mainTeacherByClassExternal.get(chat.externalClassId ?? "class-1A") as string;
+        await ctx.db.insert("messages", {
+          externalId: `msg-${chat.externalId}-1`,
+          externalChatId: chat.externalId,
+          externalSenderId: mainTeacherExternalId,
+          chatId: chat._id,
+          senderId: userDocIdByExternalId.get(mainTeacherExternalId),
+          content: `Selamat datang di grup kelas ${classCode}.`,
+          createdAt: new Date(now - i * 50_000).toISOString(),
+          deleted: false,
+        });
+      } else if (chat.type === "subject") {
+        const teacherMapping = await ctx.db
+          .query("subjectTeachers")
+          .withIndex("by_subject", (q) => q.eq("subjectId", chat.subjectId as any))
+          .first();
+        if (teacherMapping) {
+          await ctx.db.insert("messages", {
+            externalId: `msg-${chat.externalId}-1`,
+            externalChatId: chat.externalId,
+            externalSenderId: teacherMapping.externalTeacherId,
+            chatId: chat._id,
+            senderId: teacherMapping.teacherId,
+            content: "Silakan diskusi materi dan tugas pada channel ini.",
+            createdAt: new Date(now - i * 30_000).toISOString(),
+            deleted: false,
+          });
+        }
+      } else if (chat.type === "direct") {
+        const senderId = chat.participantIds?.[0];
+        const senderExternal = chat.externalParticipantIds?.[0];
+        if (senderId && senderExternal) {
+          await ctx.db.insert("messages", {
+            externalId: `msg-${chat.externalId}-1`,
+            externalChatId: chat.externalId,
+            externalSenderId: senderExternal,
+            chatId: chat._id,
+            senderId,
+            content: "Halo, silakan hubungi saya jika ada kendala belajar.",
+            createdAt: new Date(now - i * 20_000).toISOString(),
+            deleted: false,
+          });
+        }
+      }
+    }
 
     return { seeded: true };
+  },
+});
+
+export const seedStats = query({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    const classes = await ctx.db.query("class").collect();
+    const subjects = await ctx.db.query("subjects").collect();
+    const subjectTeachers = await ctx.db.query("subjectTeachers").collect();
+    const assignments = await ctx.db.query("assignments").collect();
+    const submissions = await ctx.db.query("submissions").collect();
+    const attendance = await ctx.db.query("attendance").collect();
+    const announcements = await ctx.db.query("announcements").collect();
+    const chats = await ctx.db.query("chats").collect();
+    const messages = await ctx.db.query("messages").collect();
+
+    const students = users.filter(
+      (row) => row.role === "regular_student" || row.role === "administrative_student",
+    );
+    const teachers = users.filter(
+      (row) => row.role === "main_teacher" || row.role === "specialized_teacher",
+    );
+
+    const studentsPerClass: Record<string, number> = {};
+    for (const row of students) {
+      const key = row.externalClassId ?? "unknown";
+      studentsPerClass[key] = (studentsPerClass[key] ?? 0) + 1;
+    }
+
+    const teacherSubjectCoverage: Record<string, number> = {};
+    for (const row of subjectTeachers) {
+      const key = row.externalTeacherId ?? "unknown";
+      teacherSubjectCoverage[key] = (teacherSubjectCoverage[key] ?? 0) + 1;
+    }
+
+    const uncoveredTeachers = teachers
+      .map((row) => row.externalId ?? "")
+      .filter((id) => (teacherSubjectCoverage[id] ?? 0) < 1);
+
+    return {
+      users: users.length,
+      classes: classes.length,
+      students: students.length,
+      teachers: teachers.length,
+      subjects: subjects.length,
+      subjectTeachers: subjectTeachers.length,
+      assignments: assignments.length,
+      submissions: submissions.length,
+      attendance: attendance.length,
+      announcements: announcements.length,
+      chats: chats.length,
+      messages: messages.length,
+      studentsPerClass,
+      uncoveredTeachers,
+    };
+  },
+});
+
+export const importSeedJson = mutation({
+  args: {
+    seed: v.any(),
+    reset: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const payload = args.seed as any;
+    const reset = args.reset ?? true;
+
+    if (!payload || typeof payload !== "object") {
+      throw new Error("Invalid seed payload.");
+    }
+
+    const requiredArrays = [
+      "classes",
+      "semesters",
+      "users",
+      "subjects",
+      "subjectTeachers",
+      "assignments",
+      "submissions",
+      "attendance",
+      "announcements",
+      "chats",
+      "messages",
+    ];
+
+    for (const key of requiredArrays) {
+      if (!Array.isArray(payload[key])) {
+        throw new Error(`Seed payload missing array: ${key}`);
+      }
+    }
+
+    if (reset) {
+      await clearTable(ctx, "messages");
+      await clearTable(ctx, "chats");
+      await clearTable(ctx, "attendance");
+      await clearTable(ctx, "submissions");
+      await clearTable(ctx, "assignments");
+      await clearTable(ctx, "announcements");
+      await clearTable(ctx, "subjectTeachers");
+      await clearTable(ctx, "subjects");
+      await clearTable(ctx, "users");
+      await clearTable(ctx, "semesters");
+      await clearTable(ctx, "class");
+    }
+
+    const classIdByExternalId = new Map<string, any>();
+    const semesterIdByExternalId = new Map<string, any>();
+    const userIdByExternalId = new Map<string, any>();
+    const subjectIdByExternalId = new Map<string, any>();
+    const chatIdByExternalId = new Map<string, any>();
+    const subjectDocIdsByTeacherExternalId = new Map<string, Set<any>>();
+    const subjectExternalIdsByTeacherExternalId = new Map<string, Set<string>>();
+    const classExternalIdsByTeacherExternalId = new Map<string, Set<string>>();
+
+    for (const row of payload.classes) {
+      const classId = await ctx.db.insert("class", {
+        externalId: row.externalId,
+        name: row.name,
+      });
+      classIdByExternalId.set(row.externalId, classId);
+    }
+
+    for (const row of payload.semesters) {
+      const semesterId = await ctx.db.insert("semesters", {
+        externalId: row.externalId,
+        name: row.name,
+        startDate: row.startDate,
+        endDate: row.endDate,
+      });
+      semesterIdByExternalId.set(row.externalId, semesterId);
+    }
+
+    for (const row of payload.users) {
+      const classId = classIdByExternalId.get(row.externalClassId);
+      if (!classId) {
+        throw new Error(`Missing class for user ${row.externalId}`);
+      }
+
+      const userId = await ctx.db.insert("users", {
+        externalId: row.externalId,
+        name: row.name,
+        email: row.email,
+        password: row.password ?? DEFAULT_PASSWORD,
+        role: row.role,
+        approved: Boolean(row.approved),
+        classId,
+        externalClassId: row.externalClassId,
+        bio: row.bio ?? "",
+        profileImageUrl: row.profileImageUrl,
+      });
+      userIdByExternalId.set(row.externalId, userId);
+    }
+
+    for (const row of payload.subjects) {
+      const classId = classIdByExternalId.get(row.externalClassId);
+      const teacherId = userIdByExternalId.get(row.primaryTeacherExternalId);
+      if (!classId || !teacherId) {
+        throw new Error(`Missing class/teacher for subject ${row.externalId}`);
+      }
+
+      const subjectId = await ctx.db.insert("subjects", {
+        externalId: row.externalId,
+        name: row.name,
+        classId,
+        externalClassId: row.externalClassId,
+        teacherId,
+      });
+      subjectIdByExternalId.set(row.externalId, subjectId);
+    }
+
+    for (const row of payload.subjectTeachers) {
+      const classId = classIdByExternalId.get(row.externalClassId);
+      const subjectId = subjectIdByExternalId.get(row.externalSubjectId);
+      const teacherId = userIdByExternalId.get(row.externalTeacherId);
+      if (!classId || !subjectId || !teacherId) {
+        throw new Error(`Invalid subjectTeachers row ${row.externalId}`);
+      }
+
+      await ctx.db.insert("subjectTeachers", {
+        externalId: row.externalId,
+        externalClassId: row.externalClassId,
+        externalSubjectId: row.externalSubjectId,
+        externalTeacherId: row.externalTeacherId,
+        classId,
+        subjectId,
+        teacherId,
+      });
+
+      const teacherSubjectDocIds = subjectDocIdsByTeacherExternalId.get(row.externalTeacherId) ?? new Set<any>();
+      teacherSubjectDocIds.add(subjectId);
+      subjectDocIdsByTeacherExternalId.set(row.externalTeacherId, teacherSubjectDocIds);
+
+      const teacherSubjectExternalIds = subjectExternalIdsByTeacherExternalId.get(row.externalTeacherId) ?? new Set<string>();
+      teacherSubjectExternalIds.add(row.externalSubjectId);
+      subjectExternalIdsByTeacherExternalId.set(row.externalTeacherId, teacherSubjectExternalIds);
+
+      const teacherClassExternalIds = classExternalIdsByTeacherExternalId.get(row.externalTeacherId) ?? new Set<string>();
+      teacherClassExternalIds.add(row.externalClassId);
+      classExternalIdsByTeacherExternalId.set(row.externalTeacherId, teacherClassExternalIds);
+    }
+
+    for (const row of payload.users) {
+      if (row.role !== "main_teacher" && row.role !== "specialized_teacher") {
+        continue;
+      }
+      const userId = userIdByExternalId.get(row.externalId);
+      const subjectDocIds = Array.from(subjectDocIdsByTeacherExternalId.get(row.externalId) ?? new Set<any>());
+      const subjectExternalIds = Array.from(subjectExternalIdsByTeacherExternalId.get(row.externalId) ?? new Set<string>());
+      const classExternalIds = Array.from(classExternalIdsByTeacherExternalId.get(row.externalId) ?? new Set<string>());
+
+      await ctx.db.patch(userId, {
+        subjectIds: subjectDocIds,
+        externalSubjectId: subjectExternalIds[0],
+        externalTaughtClassIds: classExternalIds,
+      });
+    }
+
+    for (const row of payload.classes) {
+      if (!row.mainTeacherExternalId) {
+        continue;
+      }
+      const classId = classIdByExternalId.get(row.externalId);
+      const mainTeacherId = userIdByExternalId.get(row.mainTeacherExternalId);
+      if (classId && mainTeacherId) {
+        await ctx.db.patch(classId, { mainTeacherId });
+      }
+    }
+
+    const assignmentIdByExternalId = new Map<string, any>();
+    for (const row of payload.assignments) {
+      const assignmentId = await ctx.db.insert("assignments", {
+        externalId: row.externalId,
+        externalSubjectId: row.externalSubjectId,
+        externalClassId: row.externalClassId,
+        externalSemesterId: row.externalSemesterId,
+        externalCreatedBy: row.externalCreatedBy,
+        assignmentType: row.assignmentType,
+        subjectId: subjectIdByExternalId.get(row.externalSubjectId),
+        semesterId: semesterIdByExternalId.get(row.externalSemesterId),
+        title: row.title,
+        description: row.description,
+        deadline: row.deadline,
+        allowLate: Boolean(row.allowLate),
+        allowResubmit: Boolean(row.allowResubmit),
+        totalScore: row.totalScore,
+        createdBy: userIdByExternalId.get(row.externalCreatedBy),
+      });
+      assignmentIdByExternalId.set(row.externalId, assignmentId);
+    }
+
+    for (const row of payload.submissions) {
+      await ctx.db.insert("submissions", {
+        externalId: row.externalId,
+        externalAssignmentId: row.externalAssignmentId,
+        externalStudentId: row.externalStudentId,
+        submissionType: row.submissionType,
+        payload: row.payload,
+        assignmentId: assignmentIdByExternalId.get(row.externalAssignmentId),
+        studentId: userIdByExternalId.get(row.externalStudentId),
+        score: row.score,
+        comment: row.comment,
+        submittedAt: row.submittedAt,
+        late: Boolean(row.late),
+      });
+    }
+
+    for (const row of payload.attendance) {
+      await ctx.db.insert("attendance", {
+        externalId: row.externalId,
+        externalSubjectId: row.externalSubjectId,
+        externalClassId: row.externalClassId,
+        externalSemesterId: row.externalSemesterId,
+        externalStudentId: row.externalStudentId,
+        subjectId: subjectIdByExternalId.get(row.externalSubjectId),
+        semesterId: semesterIdByExternalId.get(row.externalSemesterId),
+        studentId: userIdByExternalId.get(row.externalStudentId),
+        date: row.date,
+        status: row.status,
+      });
+    }
+
+    for (const row of payload.announcements) {
+      await ctx.db.insert("announcements", {
+        externalId: row.externalId,
+        externalCreatedBy: row.externalCreatedBy,
+        externalClassId: row.externalClassId,
+        title: row.title,
+        content: row.content,
+        createdBy: userIdByExternalId.get(row.externalCreatedBy),
+        createdAt: row.createdAt,
+        classId: classIdByExternalId.get(row.externalClassId),
+      });
+    }
+
+    for (const row of payload.chats) {
+      const chatId = await ctx.db.insert("chats", {
+        externalId: row.externalId,
+        externalClassId: row.externalClassId,
+        externalSubjectId: row.externalSubjectId,
+        externalParticipantIds: row.externalParticipantIds,
+        type: row.type,
+        classId: classIdByExternalId.get(row.externalClassId),
+        subjectId: row.externalSubjectId ? subjectIdByExternalId.get(row.externalSubjectId) : undefined,
+        participantIds: Array.isArray(row.externalParticipantIds)
+          ? row.externalParticipantIds.map((id: string) => userIdByExternalId.get(id)).filter(Boolean)
+          : undefined,
+        createdAt: row.createdAt,
+      });
+      chatIdByExternalId.set(row.externalId, chatId);
+    }
+
+    for (const row of payload.messages) {
+      await ctx.db.insert("messages", {
+        externalId: row.externalId,
+        externalChatId: row.externalChatId,
+        externalSenderId: row.externalSenderId,
+        chatId: chatIdByExternalId.get(row.externalChatId),
+        senderId: userIdByExternalId.get(row.externalSenderId),
+        content: row.content,
+        createdAt: row.createdAt,
+        deleted: Boolean(row.deleted),
+      });
+    }
+
+    return {
+      imported: true,
+      counts: {
+        classes: payload.classes.length,
+        semesters: payload.semesters.length,
+        users: payload.users.length,
+        subjects: payload.subjects.length,
+        subjectTeachers: payload.subjectTeachers.length,
+        assignments: payload.assignments.length,
+        submissions: payload.submissions.length,
+        attendance: payload.attendance.length,
+        announcements: payload.announcements.length,
+        chats: payload.chats.length,
+        messages: payload.messages.length,
+      },
+    };
   },
 });
 
@@ -1013,7 +1708,36 @@ export const assignSubjectTeacher = mutation({
     if (!requester || !teacher || !subject || requester.role !== "super_admin") {
       throw new Error("Only super admin can assign subject owners.");
     }
-    await ctx.db.patch(teacher._id, { externalSubjectId: args.subjectId });
+
+    const existingMapping = await ctx.db
+      .query("subjectTeachers")
+      .withIndex("by_subject_teacher", (q) => q.eq("subjectId", subject._id).eq("teacherId", teacher._id))
+      .first();
+
+    if (!existingMapping) {
+      await ctx.db.insert("subjectTeachers", {
+        externalId: `st-${args.subjectId}-${args.teacherId}`,
+        externalClassId: subject.externalClassId,
+        externalSubjectId: args.subjectId,
+        externalTeacherId: args.teacherId,
+        classId: subject.classId,
+        subjectId: subject._id,
+        teacherId: teacher._id,
+      });
+    }
+
+    const teacherSubjectIds = Array.from(
+      new Set([...(teacher.subjectIds ?? []), subject._id]),
+    );
+    const teacherExternalTaughtClassIds = Array.from(
+      new Set([...(teacher.externalTaughtClassIds ?? []), subject.externalClassId].filter(Boolean)),
+    );
+
+    await ctx.db.patch(teacher._id, {
+      externalSubjectId: teacher.externalSubjectId ?? args.subjectId,
+      subjectIds: teacherSubjectIds,
+      externalTaughtClassIds: teacherExternalTaughtClassIds,
+    });
     await ctx.db.patch(subject._id, { teacherId: teacher._id });
   },
 });
@@ -1053,7 +1777,7 @@ export const updateOwnProfile = mutation({
       profileImageUrl: args.profileImageUrl,
       profileImageId: args.profileImageId as never,
     });
-    const updated = await ctx.db.get(requester._id);
+    const updated = (await ctx.db.get(requester._id)) as any;
     if (!updated) {
       throw new Error("Unable to load updated profile.");
     }
