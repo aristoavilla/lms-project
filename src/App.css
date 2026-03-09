@@ -927,6 +927,69 @@ a {
   padding: 1rem;
 }
 
+.demo-accounts {
+  text-align: left;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: #f8fbff;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.demo-accounts-title {
+  margin: 0;
+  color: #2a3f5a;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.demo-account-list {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.demo-account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  background: #fff;
+  border: 1px solid #dbe5f2;
+  border-radius: 10px;
+  padding: 0.48rem 0.55rem;
+}
+
+.demo-account-copy {
+  display: grid;
+  gap: 0.07rem;
+  min-width: 0;
+}
+
+.demo-account-copy strong {
+  font-size: 0.82rem;
+  color: #163656;
+  overflow-wrap: anywhere;
+}
+
+.demo-account-copy span {
+  font-size: 0.74rem;
+  color: #637b97;
+}
+
+.demo-use-button {
+  background: #e7f0fb;
+  border-color: #bfd3ea;
+  color: #17426b;
+  font-size: 0.78rem;
+  padding: 0.4rem 0.66rem;
+}
+
+.demo-use-button:hover {
+  background: #d9e8f8;
+  border-color: #adc7e3;
+}
+
 .profile-page {
   gap: 1.1rem;
 }

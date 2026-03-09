@@ -60,7 +60,8 @@ To enable Convex-backed runtime data, configure:
 VITE_CONVEX_URL=https://YOUR_DEPLOYMENT.convex.cloud
 ```
 
-If `VITE_CONVEX_URL` is not set (or a Convex call fails), the app safely falls back to local seeded service behavior.
+If `VITE_CONVEX_URL` is not set, the app falls back to local seeded service behavior.
+When `VITE_CONVEX_URL` is configured, write operations require Convex availability and will fail explicitly instead of silently saving to temporary local state.
 
 ## Validate
 
@@ -72,7 +73,7 @@ npm run test
 
 ## Current Phase Notes
 
-- Runtime data now supports Convex-backed reads/writes for core LMS flows (users, assignments, announcements, attendance, submissions, rankings, admin actions), with local fallback for resiliency.
-- Chat remains local-service backed in this phase.
+- Runtime data supports Convex-backed reads/writes for core LMS flows and chat.
+- Convex bootstrap seeding is non-destructive and only runs on empty deployments.
 - Multi-class (9 classes x 30 students) full production dataset and migration are not yet implemented.
 - Quiz auto-grading/manual grading flow is partially modeled but not fully surfaced as an end-to-end UI workflow.

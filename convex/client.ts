@@ -217,30 +217,49 @@ function toSubmissionDto(submission: {
 export const ensureSeeded = mutation({
   args: {},
   handler: async (ctx) => {
-    const allUsers = await ctx.db.query("users").collect();
-    const allClasses = await ctx.db.query("class").collect();
-    const allSubjectTeachers = await ctx.db.query("subjectTeachers").collect();
+    const [
+      allUsers,
+      allClasses,
+      allSemesters,
+      allSubjects,
+      allSubjectTeachers,
+      allAssignments,
+      allSubmissions,
+      allAttendance,
+      allAnnouncements,
+      existingChats,
+      existingMessages,
+    ] = await Promise.all([
+      ctx.db.query("users").collect(),
+      ctx.db.query("class").collect(),
+      ctx.db.query("semesters").collect(),
+      ctx.db.query("subjects").collect(),
+      ctx.db.query("subjectTeachers").collect(),
+      ctx.db.query("assignments").collect(),
+      ctx.db.query("submissions").collect(),
+      ctx.db.query("attendance").collect(),
+      ctx.db.query("announcements").collect(),
+      ctx.db.query("chats").collect(),
+      ctx.db.query("messages").collect(),
+    ]);
 
-    const studentCount = allUsers.filter(
-      (row: any) => row.role === "regular_student" || row.role === "administrative_student",
-    ).length;
+    const totalRows =
+      allUsers.length +
+      allClasses.length +
+      allSemesters.length +
+      allSubjects.length +
+      allSubjectTeachers.length +
+      allAssignments.length +
+      allSubmissions.length +
+      allAttendance.length +
+      allAnnouncements.length +
+      existingChats.length +
+      existingMessages.length;
 
-    if (allClasses.length === 9 && studentCount === 270 && allSubjectTeachers.length >= 108) {
+    // Seed only on first boot of an empty deployment.
+    if (totalRows > 0) {
       return { seeded: false };
     }
-
-    // Reset all app tables when data is partial or outdated.
-    await clearTable(ctx, "messages");
-    await clearTable(ctx, "chats");
-    await clearTable(ctx, "attendance");
-    await clearTable(ctx, "submissions");
-    await clearTable(ctx, "assignments");
-    await clearTable(ctx, "announcements");
-    await clearTable(ctx, "subjectTeachers");
-    await clearTable(ctx, "subjects");
-    await clearTable(ctx, "users");
-    await clearTable(ctx, "semesters");
-    await clearTable(ctx, "class");
 
     const classByExternalId = new Map<string, any>();
     const mainTeacherByClassExternal = new Map<string, string>();
@@ -1758,24 +1777,43 @@ export const listVisibleProfiles = query({
   },
 });
 
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
 export const updateOwnProfile = mutation({
   args: {
     requesterId: v.string(),
     name: v.string(),
     bio: v.string(),
-    profileImageUrl: v.optional(v.string()),
-    profileImageId: v.optional(v.string()),
+    profileImageId: v.optional(v.id("_storage")),
+    clearProfileImage: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const requester = await getUserByExternalId(ctx, args.requesterId);
     if (!requester) {
       throw new Error("Requester not found.");
     }
-    await ctx.db.patch(requester._id, {
+    const patch: Record<string, unknown> = {
       name: args.name.trim(),
       bio: args.bio.trim(),
-      profileImageUrl: args.profileImageUrl,
-      profileImageId: args.profileImageId as never,
+    };
+
+    if (args.clearProfileImage) {
+      patch.profileImageUrl = undefined;
+      patch.profileImageId = undefined;
+    } else {
+      if (args.profileImageId !== undefined) {
+        patch.profileImageId = args.profileImageId;
+        patch.profileImageUrl = (await ctx.storage.getUrl(args.profileImageId)) ?? undefined;
+      }
+    }
+
+    await ctx.db.patch(requester._id, {
+      ...patch,
     });
     const updated = (await ctx.db.get(requester._id)) as any;
     if (!updated) {

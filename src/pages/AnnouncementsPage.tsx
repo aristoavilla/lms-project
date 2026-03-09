@@ -26,14 +26,14 @@ export function AnnouncementsPage({ user }: Props) {
         content: variables.content,
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["announcements", user.classId] });
+      await queryClient.invalidateQueries({ queryKey: ["announcements", user.role, user.classId] });
     },
   });
 
   const remove = useMutation({
     mutationFn: (id: string) => deleteAnnouncement(user, id),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["announcements", user.classId] });
+      await queryClient.invalidateQueries({ queryKey: ["announcements", user.role, user.classId] });
     },
   });
 

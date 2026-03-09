@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PaginationControls } from "../components/PaginationControls";
 import { useUpdateProfile, useUsers, useVisibleProfiles } from "../hooks/useLmsQueries";
 import { usePagination } from "../hooks/usePagination";
-import type { FileAsset, User } from "../types";
+import type { User } from "../types";
 
 interface Props {
   user: User;
@@ -31,16 +31,6 @@ function initials(name: string) {
     .join("");
 }
 
-function toAsset(file: File): FileAsset {
-  return {
-    id: `profile-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-    name: file.name,
-    size: file.size,
-    mimeType: file.type,
-    url: URL.createObjectURL(file),
-  };
-}
-
 function roleText(role: User["role"]) {
   return role.replaceAll("_", " ");
 }
@@ -55,15 +45,24 @@ export function ProfilePage({ user }: Props) {
   const update = useUpdateProfile(user);
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState({ name: user.name, bio: user.bio ?? "" });
-  const [newImage, setNewImage] = useState<FileAsset | null | undefined>(undefined);
+  const [newImage, setNewImage] = useState<File | null | undefined>(undefined);
+  const [newImagePreviewUrl, setNewImagePreviewUrl] = useState<string | undefined>(undefined);
   const [imageError, setImageError] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (newImagePreviewUrl) {
+        URL.revokeObjectURL(newImagePreviewUrl);
+      }
+    };
+  }, [newImagePreviewUrl]);
 
   const me = useMemo(
     () => (users.data ?? []).find((candidate) => candidate._id === user._id) ?? user,
     [users.data, user],
   );
 
-  const displayImage = newImage?.url ?? me.profileImageUrl;
+  const displayImage = newImagePreviewUrl ?? me.profileImageUrl;
   const pagedProfiles = usePagination(visible.data ?? [], 10);
 
   return (
@@ -108,6 +107,7 @@ export function ProfilePage({ user }: Props) {
               onClick={() => {
                 setDraft({ name: me.name, bio: me.bio ?? "" });
                 setNewImage(undefined);
+                setNewImagePreviewUrl(undefined);
                 setImageError(null);
                 setIsEditing(true);
               }}
@@ -132,6 +132,8 @@ export function ProfilePage({ user }: Props) {
                 bio: draft.bio,
                 profileImage: newImage === undefined ? undefined : newImage,
               });
+              setNewImage(undefined);
+              setNewImagePreviewUrl(undefined);
               setIsEditing(false);
             }}
           >
@@ -170,6 +172,7 @@ export function ProfilePage({ user }: Props) {
                     if (!file) {
                       setImageError(null);
                       setNewImage(undefined);
+                      setNewImagePreviewUrl(undefined);
                       return;
                     }
                     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
@@ -180,8 +183,12 @@ export function ProfilePage({ user }: Props) {
                       setImageError("Profile image max size is 2MB.");
                       return;
                     }
+                    if (newImagePreviewUrl) {
+                      URL.revokeObjectURL(newImagePreviewUrl);
+                    }
                     setImageError(null);
-                    setNewImage(toAsset(file));
+                    setNewImage(file);
+                    setNewImagePreviewUrl(URL.createObjectURL(file));
                   }}
                   disabled={!isEditing || update.isPending}
                 />
@@ -217,6 +224,7 @@ export function ProfilePage({ user }: Props) {
                   onClick={() => {
                     setDraft({ name: me.name, bio: me.bio ?? "" });
                     setNewImage(undefined);
+                    setNewImagePreviewUrl(undefined);
                     setImageError(null);
                     setIsEditing(false);
                   }}
@@ -226,7 +234,13 @@ export function ProfilePage({ user }: Props) {
                 <button
                   type="button"
                   className="secondary"
-                  onClick={() => setNewImage(null)}
+                  onClick={() => {
+                    if (newImagePreviewUrl) {
+                      URL.revokeObjectURL(newImagePreviewUrl);
+                    }
+                    setNewImagePreviewUrl(undefined);
+                    setNewImage(null);
+                  }}
                   disabled={update.isPending}
                 >
                   Remove Image
@@ -279,7 +293,7 @@ export function ProfilePage({ user }: Props) {
   );
 }
 
-function attachmentHint(image: FileAsset | null | undefined) {
+function attachmentHint(image: File | null | undefined) {
   if (image === null) {
     return "Image will be removed after save";
   }

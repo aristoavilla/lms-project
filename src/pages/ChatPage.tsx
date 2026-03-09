@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useQuery as useConvexQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import { PaginationControls } from "../components/PaginationControls";
 import {
-  useChatMessages,
-  useChatThreads,
   useDeleteMessage,
-  useDirectContacts,
   useEditMessage,
   useMarkChatAsRead,
   useSendMessage,
+  useChatMessages,
+  useChatThreads,
+  useDirectContacts,
   useUsers,
 } from "../hooks/useLmsQueries";
 import { usePagination } from "../hooks/usePagination";
@@ -64,25 +66,61 @@ function attachmentFromFile(file: File): FileAsset {
   };
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+  return fallback;
+}
+
 export function ChatPage({ user }: Props) {
-  const threads = useChatThreads(user);
-  const contacts = useDirectContacts(user);
+  const convexEnabled = Boolean(import.meta.env.VITE_CONVEX_URL);
+  const fallbackThreads = useChatThreads(user, { enabled: !convexEnabled });
+  const fallbackContacts = useDirectContacts(user, { enabled: !convexEnabled });
   const users = useUsers();
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [messageText, setMessageText] = useState("");
   const [attachment, setAttachment] = useState<FileAsset | undefined>(undefined);
   const [recipient, setRecipient] = useState("");
   const [recipientClassId, setRecipientClassId] = useState(user.classId);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const allThreads = useMemo(() => threads.data ?? [], [threads.data]);
+  const streamedThreads = useConvexQuery(
+    api.chats.listThreads,
+    convexEnabled ? { requesterId: user._id } : "skip",
+  );
+
+  const allThreads = useMemo(
+    () => (convexEnabled ? streamedThreads ?? [] : fallbackThreads.data ?? []),
+    [convexEnabled, streamedThreads, fallbackThreads.data],
+  );
   const effectiveActiveChatId = activeChatId ?? allThreads[0]?.chat._id ?? null;
 
-  const messages = useChatMessages(user, effectiveActiveChatId);
+  const fallbackMessages = useChatMessages(user, effectiveActiveChatId, { enabled: !convexEnabled });
+  const streamedMessages = useConvexQuery(
+    api.chats.listMessages,
+    convexEnabled && effectiveActiveChatId
+      ? { requesterId: user._id, chatId: effectiveActiveChatId }
+      : "skip",
+  );
+  const messagesData = convexEnabled
+    ? streamedMessages ?? []
+    : fallbackMessages.data ?? [];
+
+  const streamedContacts = useConvexQuery(
+    api.chats.listDirectContacts,
+    convexEnabled && user.role !== "super_admin" ? { requesterId: user._id } : "skip",
+  );
+  const contactsData = convexEnabled
+    ? (streamedContacts ?? [])
+    : ((fallbackContacts.data ?? []) as User[]);
+
   const send = useSendMessage(user);
   const edit = useEditMessage(user, effectiveActiveChatId);
   const remove = useDeleteMessage(user, effectiveActiveChatId);
   const read = useMarkChatAsRead(user);
   const feedEndRef = useRef<HTMLDivElement | null>(null);
+  const lastReadChatIdRef = useRef<string | null>(null);
 
   const groupedThreads = useMemo(
     () => ({
@@ -101,19 +139,45 @@ export function ChatPage({ user }: Props) {
   const pagedSubjectThreads = usePagination(groupedThreads.subject, 10, allThreads.length);
   const pagedDirectThreads = usePagination(groupedThreads.direct, 10, allThreads.length);
 
+  const threadsError = !convexEnabled && fallbackThreads.error
+    ? getErrorMessage(fallbackThreads.error, "Failed to load chat threads.")
+    : null;
+  const messagesError = !convexEnabled && fallbackMessages.error
+    ? getErrorMessage(fallbackMessages.error, "Failed to load messages.")
+    : null;
+  const contactsError = !convexEnabled && fallbackContacts.error
+    ? getErrorMessage(fallbackContacts.error, "Failed to load direct contacts.")
+    : null;
+  const isThreadsLoading = convexEnabled ? streamedThreads === undefined : fallbackThreads.isLoading;
+  const isMessagesLoading = convexEnabled
+    ? Boolean(effectiveActiveChatId) && streamedMessages === undefined
+    : fallbackMessages.isLoading;
+
   useEffect(() => {
     if (!effectiveActiveChatId) {
       return;
     }
-    read.mutate(effectiveActiveChatId);
-  }, [effectiveActiveChatId, read]);
+    if (lastReadChatIdRef.current === effectiveActiveChatId) {
+      return;
+    }
+    lastReadChatIdRef.current = effectiveActiveChatId;
+    read.mutate(effectiveActiveChatId, {
+      onError: (error) => {
+        if (lastReadChatIdRef.current === effectiveActiveChatId) {
+          lastReadChatIdRef.current = null;
+        }
+        setActionError(getErrorMessage(error, "Failed to mark this chat as read."));
+      },
+    });
+  }, [effectiveActiveChatId, read.mutate]);
 
   useEffect(() => {
     feedEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages.data?.length]);
+  }, [messagesData.length]);
 
   const userMap = useMemo(
-    () => new Map((users.data ?? []).map((candidate) => [candidate._id, candidate])),
+    () =>
+      new Map<string, User>(((users.data ?? []) as User[]).map((candidate) => [candidate._id, candidate])),
     [users.data],
   );
 
@@ -128,33 +192,39 @@ export function ChatPage({ user }: Props) {
     if (!canSubmit) {
       return;
     }
-    if (activeChat) {
-      await send.mutateAsync({
-        chatId: activeChat._id,
-        type: activeChat.type,
-        classId: activeChat.classId,
-        subjectId: activeChat.subjectId,
+    setActionError(null);
+    try {
+      if (activeChat) {
+        await send.mutateAsync({
+          chatId: activeChat._id,
+          type: activeChat.type,
+          classId: activeChat.classId,
+          subjectId: activeChat.subjectId,
+          content: trimmedMessage,
+          attachment,
+        });
+        setMessageText("");
+        setAttachment(undefined);
+        return;
+      }
+
+      if (!recipient) {
+        setActionError("Please choose a recipient to start a direct chat.");
+        return;
+      }
+      const created = await send.mutateAsync({
+        type: "direct",
+        classId: recipientClassId,
+        recipientUserId: recipient,
         content: trimmedMessage,
         attachment,
       });
+      setActiveChatId(created.chatId);
       setMessageText("");
       setAttachment(undefined);
-      return;
+    } catch (error) {
+      setActionError(getErrorMessage(error, "Failed to send message."));
     }
-
-    if (!recipient) {
-      return;
-    }
-    const created = await send.mutateAsync({
-      type: "direct",
-      classId: recipientClassId,
-      recipientUserId: recipient,
-      content: trimmedMessage,
-      attachment,
-    });
-    setActiveChatId(created.chatId);
-    setMessageText("");
-    setAttachment(undefined);
   }
 
   return (
@@ -173,8 +243,10 @@ export function ChatPage({ user }: Props) {
               </span>
               Channels
             </strong>
-            {threads.isLoading && <span className="badge subtle">Loading</span>}
+            {isThreadsLoading && <span className="badge subtle">Loading</span>}
           </div>
+
+          {threadsError && <p className="error-text">{threadsError}</p>}
 
           {user.role !== "super_admin" && (
             <div className="item-card dm-composer">
@@ -186,12 +258,13 @@ export function ChatPage({ user }: Props) {
               </strong>
               <select value={recipient} onChange={(event) => setRecipient(event.target.value)}>
                 <option value="">Select recipient</option>
-                {(contacts.data ?? []).map((candidate) => (
+                {contactsData.map((candidate) => (
                   <option key={candidate._id} value={candidate._id}>
                     {candidate.name}
                   </option>
                 ))}
               </select>
+              {contactsError && <p className="error-text">{contactsError}</p>}
               <input
                 value={recipientClassId}
                 onChange={(event) => setRecipientClassId(event.target.value)}
@@ -201,14 +274,22 @@ export function ChatPage({ user }: Props) {
                 type="button"
                 className="chat-quick-action"
                 onClick={async () => {
-                  if (!recipient) return;
-                  const created = await send.mutateAsync({
-                    type: "direct",
-                    classId: recipientClassId,
-                    recipientUserId: recipient,
-                    content: "Hello",
-                  });
-                  setActiveChatId(created.chatId);
+                  if (!recipient) {
+                    setActionError("Please choose a recipient to open a direct chat.");
+                    return;
+                  }
+                  setActionError(null);
+                  try {
+                    const created = await send.mutateAsync({
+                      type: "direct",
+                      classId: recipientClassId,
+                      recipientUserId: recipient,
+                      content: "Hello",
+                    });
+                    setActiveChatId(created.chatId);
+                  } catch (error) {
+                    setActionError(getErrorMessage(error, "Failed to open direct chat."));
+                  }
                 }}
               >
                 <span className="button-icon">
@@ -296,7 +377,10 @@ export function ChatPage({ user }: Props) {
         </aside>
 
         <section className="chat-main">
-          {messages.isLoading && (
+          {actionError && <p className="error-text">{actionError}</p>}
+          {messagesError && <p className="error-text">{messagesError}</p>}
+
+          {isMessagesLoading && (
             <div className="chat-skeleton-list">
               <div className="chat-skeleton" />
               <div className="chat-skeleton" />
@@ -304,7 +388,7 @@ export function ChatPage({ user }: Props) {
             </div>
           )}
 
-          {!messages.isLoading && (
+          {!isMessagesLoading && (
             <>
               <div className="chat-head row-between">
                 <strong className="chat-title-with-icon">
@@ -317,7 +401,7 @@ export function ChatPage({ user }: Props) {
               </div>
 
               <div className="chat-feed">
-                {(messages.data ?? []).map((message) => {
+                {messagesData.map((message) => {
                   const sender = userMap.get(message.senderId);
                   const mine = message.senderId === user._id;
                   return (
@@ -342,10 +426,15 @@ export function ChatPage({ user }: Props) {
                         <div className="button-row chat-actions">
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={async () => {
                               const next = window.prompt("Edit message", message.content);
                               if (!next) return;
-                              edit.mutate({ messageId: message._id, content: next });
+                              setActionError(null);
+                              try {
+                                await edit.mutateAsync({ messageId: message._id, content: next });
+                              } catch (error) {
+                                setActionError(getErrorMessage(error, "Failed to edit message."));
+                              }
                             }}
                           >
                             <span className="button-icon">
@@ -353,7 +442,17 @@ export function ChatPage({ user }: Props) {
                             </span>
                             Edit
                           </button>
-                          <button type="button" onClick={() => remove.mutate(message._id)}>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              setActionError(null);
+                              try {
+                                await remove.mutateAsync(message._id);
+                              } catch (error) {
+                                setActionError(getErrorMessage(error, "Failed to delete message."));
+                              }
+                            }}
+                          >
                             <span className="button-icon">
                               <Icon path="M4 7h16M9 7V4h6v3m-7 4v7m4-7v7m4-7v7M6 7l1 13a1 1 0 0 0 1 .9h8a1 1 0 0 0 1-.9L18 7" />
                             </span>
@@ -364,7 +463,7 @@ export function ChatPage({ user }: Props) {
                     </article>
                   );
                 })}
-                {!messages.data?.length && <p className="muted-line chat-feed-empty">No messages yet. Start the conversation.</p>}
+                {!messagesData.length && <p className="muted-line chat-feed-empty">No messages yet. Start the conversation.</p>}
                 <div ref={feedEndRef} />
               </div>
 

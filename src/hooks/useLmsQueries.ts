@@ -192,7 +192,7 @@ export function useUpdateProfile(user: User) {
     mutationFn: (variables: {
       name: string;
       bio: string;
-      profileImage?: FileAsset | null;
+      profileImage?: File | null;
     }) => lms.updateOwnProfile(user, variables),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["users"] });
@@ -203,15 +203,16 @@ export function useUpdateProfile(user: User) {
   });
 }
 
-export function useChatThreads(user: User) {
+export function useChatThreads(user: User, options?: { enabled?: boolean }) {
   return useQuery<ChatThread[]>({
     queryKey: ["chat-threads", user._id],
     queryFn: () => lms.listChatThreadsForUser(user),
+    enabled: options?.enabled ?? true,
     refetchInterval: 2500,
   });
 }
 
-export function useChatMessages(user: User, chatId: string | null) {
+export function useChatMessages(user: User, chatId: string | null, options?: { enabled?: boolean }) {
   return useQuery<Message[]>({
     queryKey: ["chat-messages", user._id, chatId ?? "none"],
     queryFn: () => {
@@ -220,7 +221,7 @@ export function useChatMessages(user: User, chatId: string | null) {
       }
       return lms.listMessagesForChat(user, chatId);
     },
-    enabled: Boolean(chatId),
+    enabled: Boolean(chatId) && (options?.enabled ?? true),
     refetchInterval: 1800,
   });
 }
@@ -247,7 +248,12 @@ interface SendMessageInput {
 
 export function useSendMessage(user: User) {
   const queryClient = useQueryClient();
-  return useMutation({
+  return useMutation<
+    Message,
+    Error,
+    SendMessageInput,
+    { previous?: Message[]; targetKey: readonly ["chat-messages", string, string] }
+  >({
     mutationFn: (variables: SendMessageInput) => lms.sendMessage(user, variables),
     onMutate: async (variables) => {
       const targetKey = ["chat-messages", user._id, variables.chatId ?? "none"] as const;
@@ -311,10 +317,10 @@ export function useDeleteMessage(user: User, chatId: string | null) {
   });
 }
 
-export function useDirectContacts(user: User) {
+export function useDirectContacts(user: User, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["chat-direct-contacts", user._id],
     queryFn: () => lms.listDirectContacts(user),
-    enabled: user.role !== "super_admin",
+    enabled: (options?.enabled ?? true) && user.role !== "super_admin",
   });
 }
