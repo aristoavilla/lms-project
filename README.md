@@ -5,8 +5,8 @@ Single-school class-based LMS aligned to the provided PRD.
 ## Stack
 
 - Frontend: React + Vite + TypeScript
-- Data layer in UI runtime: React Query + Convex-backed service adapter with local fallback (`src/services/lmsService.ts`)
-- Backend model and RBAC rules: Convex functions under `convex/`
+- Data layer in UI runtime: React Query + Convex-backed service adapter with local fallback (`packages/frontend/src/services/lmsService.ts`)
+- Backend model and RBAC rules: Convex functions under `packages/backend/convex/`
 
 ## Implemented PRD Areas
 
@@ -28,14 +28,14 @@ Single-school class-based LMS aligned to the provided PRD.
 
 ## Security Model (Current)
 
-- Frontend service-level role checks in `src/services/lmsService.ts`
+- Frontend service-level role checks in `packages/frontend/src/services/lmsService.ts`
 - Convex server-side checks in:
-  - `convex/lib/rbac.ts`
-  - `convex/assignments.ts`
-  - `convex/attendance.ts`
-  - `convex/announcements.ts`
-  - `convex/rankings.ts`
-  - `convex/users.ts`
+  - `packages/backend/convex/lib/rbac.ts`
+  - `packages/backend/convex/assignments.ts`
+  - `packages/backend/convex/attendance.ts`
+  - `packages/backend/convex/announcements.ts`
+  - `packages/backend/convex/rankings.ts`
+  - `packages/backend/convex/users.ts`
 
 Key guarantees currently enforced in Convex layer:
 
@@ -49,8 +49,15 @@ Key guarantees currently enforced in Convex layer:
 ## Run
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
+```
+
+Run frontend and backend separately when needed:
+
+```bash
+pnpm dev:frontend
+pnpm dev:backend
 ```
 
 To enable Convex-backed runtime data, configure:
@@ -66,9 +73,9 @@ When `VITE_CONVEX_URL` is configured, write operations require Convex availabili
 ## Validate
 
 ```bash
-npm run lint
-npm run build
-npm run test
+pnpm lint
+pnpm build
+pnpm test
 ```
 
 ## Current Phase Notes

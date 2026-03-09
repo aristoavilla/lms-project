@@ -1,0 +1,16 @@
+{
+  "name": "@lms/backend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "convex:dev": "convex dev",
+    "convex:dev:once": "convex dev --once",
+    "convex:deploy": "convex deploy",
+    "seed:json:generate": "node scripts/generate-convex-seed-json.mjs",
+    "seed:convex:import": "node scripts/import-convex-seed.mjs"
+  },
+  "devDependencies": {
+    "convex": "^1.32.0"
+  }
+}

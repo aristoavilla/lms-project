@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useQuery as useConvexQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { api } from "../../../backend/convex/_generated/api";
 import { PaginationControls } from "../components/PaginationControls";
 import {
   useDeleteMessage,
