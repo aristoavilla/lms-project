@@ -4,13 +4,29 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "convex:dev": "convex dev",
-    "convex:dev:once": "convex dev --once",
-    "convex:deploy": "convex deploy",
-    "seed:json:generate": "node scripts/generate-convex-seed-json.mjs",
-    "seed:convex:import": "node scripts/import-convex-seed.mjs"
+    "dev": "wrangler dev",
+    "build": "wrangler deploy --dry-run",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "seed:json:generate": "node scripts/generate-seed-json.mjs",
+    "seed:db": "tsx src/scripts/seed.ts"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.7.5",
+    "@neondatabase/serverless": "^1.0.2",
+    "drizzle-orm": "^0.44.7",
+    "hono": "^4.10.5",
+    "jose": "^6.1.2",
+    "posthog-node": "^5.9.0",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
-    "convex": "^1.32.0"
+    "@cloudflare/workers-types": "^4.20260115.0",
+    "drizzle-kit": "^0.31.7",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.51.0"
   }
 }

@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useQuery as useConvexQuery } from "convex/react";
-import { api } from "../../../backend/convex/_generated/api";
 import { PaginationControls } from "../components/PaginationControls";
 import {
   useDeleteMessage,
@@ -74,9 +72,8 @@ function getErrorMessage(error: unknown, fallback: string) {
 }
 
 export function ChatPage({ user }: Props) {
-  const convexEnabled = Boolean(import.meta.env.VITE_CONVEX_URL);
-  const fallbackThreads = useChatThreads(user, { enabled: !convexEnabled });
-  const fallbackContacts = useDirectContacts(user, { enabled: !convexEnabled });
+  const threads = useChatThreads(user);
+  const contacts = useDirectContacts(user);
   const users = useUsers();
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [messageText, setMessageText] = useState("");
@@ -85,35 +82,12 @@ export function ChatPage({ user }: Props) {
   const [recipientClassId, setRecipientClassId] = useState(user.classId);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const streamedThreads = useConvexQuery(
-    api.chats.listThreads,
-    convexEnabled ? { requesterId: user._id } : "skip",
-  );
-
-  const allThreads = useMemo(
-    () => (convexEnabled ? streamedThreads ?? [] : fallbackThreads.data ?? []),
-    [convexEnabled, streamedThreads, fallbackThreads.data],
-  );
+  const allThreads = useMemo(() => threads.data ?? [], [threads.data]);
   const effectiveActiveChatId = activeChatId ?? allThreads[0]?.chat._id ?? null;
 
-  const fallbackMessages = useChatMessages(user, effectiveActiveChatId, { enabled: !convexEnabled });
-  const streamedMessages = useConvexQuery(
-    api.chats.listMessages,
-    convexEnabled && effectiveActiveChatId
-      ? { requesterId: user._id, chatId: effectiveActiveChatId }
-      : "skip",
-  );
-  const messagesData = convexEnabled
-    ? streamedMessages ?? []
-    : fallbackMessages.data ?? [];
-
-  const streamedContacts = useConvexQuery(
-    api.chats.listDirectContacts,
-    convexEnabled && user.role !== "super_admin" ? { requesterId: user._id } : "skip",
-  );
-  const contactsData = convexEnabled
-    ? (streamedContacts ?? [])
-    : ((fallbackContacts.data ?? []) as User[]);
+  const messages = useChatMessages(user, effectiveActiveChatId);
+  const messagesData = messages.data ?? [];
+  const contactsData = (contacts.data ?? []) as User[];
 
   const send = useSendMessage(user);
   const edit = useEditMessage(user, effectiveActiveChatId);
@@ -139,19 +113,17 @@ export function ChatPage({ user }: Props) {
   const pagedSubjectThreads = usePagination(groupedThreads.subject, 10, allThreads.length);
   const pagedDirectThreads = usePagination(groupedThreads.direct, 10, allThreads.length);
 
-  const threadsError = !convexEnabled && fallbackThreads.error
-    ? getErrorMessage(fallbackThreads.error, "Failed to load chat threads.")
+  const threadsError = threads.error
+    ? getErrorMessage(threads.error, "Failed to load chat threads.")
     : null;
-  const messagesError = !convexEnabled && fallbackMessages.error
-    ? getErrorMessage(fallbackMessages.error, "Failed to load messages.")
+  const messagesError = messages.error
+    ? getErrorMessage(messages.error, "Failed to load messages.")
     : null;
-  const contactsError = !convexEnabled && fallbackContacts.error
-    ? getErrorMessage(fallbackContacts.error, "Failed to load direct contacts.")
+  const contactsError = contacts.error
+    ? getErrorMessage(contacts.error, "Failed to load direct contacts.")
     : null;
-  const isThreadsLoading = convexEnabled ? streamedThreads === undefined : fallbackThreads.isLoading;
-  const isMessagesLoading = convexEnabled
-    ? Boolean(effectiveActiveChatId) && streamedMessages === undefined
-    : fallbackMessages.isLoading;
+  const isThreadsLoading = threads.isLoading;
+  const isMessagesLoading = messages.isLoading;
 
   useEffect(() => {
     if (!effectiveActiveChatId) {

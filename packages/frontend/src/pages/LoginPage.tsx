@@ -141,7 +141,7 @@ export function LoginPage({ onLogin }: Props) {
               </div>
             </form>
             <section className="demo-accounts" aria-label="Demo login accounts">
-              <p className="demo-accounts-title">Class 1A Seeded Accounts (Password: {demoPassword})</p>
+              <p className="demo-accounts-title">Neon Backend Demo Accounts (Password: {demoPassword})</p>
               <div className="demo-account-list">
                 {DEMO_ACCOUNTS.map((account) => (
                   <div className="demo-account-row" key={account.email}>

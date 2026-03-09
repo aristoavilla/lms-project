@@ -5,13 +5,15 @@
   "scripts": {
     "dev": "pnpm dev:frontend",
     "dev:frontend": "pnpm --dir packages/frontend dev",
-    "dev:backend": "pnpm --dir packages/backend convex:dev",
-    "build": "pnpm --dir packages/frontend build",
+    "dev:backend": "pnpm --dir packages/backend dev",
+    "build": "pnpm build:frontend && pnpm build:backend",
+    "build:frontend": "pnpm --dir packages/frontend build",
+    "build:backend": "pnpm --dir packages/backend build",
     "lint": "pnpm --dir packages/frontend lint",
     "test": "pnpm --dir packages/frontend test",
     "preview": "pnpm --dir packages/frontend preview",
-    "convex:dev:once": "pnpm --dir packages/backend convex:dev:once",
-    "seed:json:generate": "pnpm --dir packages/backend seed:json:generate",
-    "seed:convex:import": "pnpm --dir packages/backend seed:convex:import"
+    "db:generate": "pnpm --dir packages/backend db:generate",
+    "db:migrate": "pnpm --dir packages/backend db:migrate",
+    "seed:json:generate": "pnpm --dir packages/backend seed:json:generate"
   }
 }

@@ -1,0 +1,21 @@
+name = "lms-backend"
+main = "src/index.ts"
+compatibility_date = "2026-03-09"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+POSTHOG_HOST = "https://us.i.posthog.com"
+JWT_SECRET = "local-dev-super-secret-key-change-me"
+
+[[r2_buckets]]
+binding = "LMS_UPLOADS"
+bucket_name = "lms-uploads"
+
+[[queues.producers]]
+binding = "LMS_QUEUE"
+queue = "lms-events"
+
+[[queues.consumers]]
+queue = "lms-events"
+max_batch_size = 10
+max_batch_timeout = 5

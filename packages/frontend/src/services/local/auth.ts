@@ -17,6 +17,98 @@ import {
 
 export { getDefaultSeededPassword };
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "");
+const SESSION_TOKEN_KEY = "lms:session:token";
+
+interface BackendUser {
+  id: string;
+  name: string;
+  email: string;
+  role: User["role"];
+  approved: boolean;
+  classId: string;
+  subjectId?: string;
+  taughtClassIds?: string[];
+  bio?: string;
+  createdAt?: string;
+}
+
+function canUseBackendAuth() {
+  return Boolean(API_BASE_URL);
+}
+
+function canUseLocalStorage() {
+  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+}
+
+async function parseApiError(response: Response) {
+  const fallback = `Request failed with status ${response.status}.`;
+  try {
+    const payload = (await response.json()) as { error?: string };
+    return payload.error ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  if (!API_BASE_URL) {
+    throw new Error("Backend API base URL is not configured.");
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  return (await response.json()) as T;
+}
+
+function upsertBackendUser(user: BackendUser): User {
+  const mapped: User = {
+    _id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    approved: user.approved,
+    classId: user.classId,
+    subjectId: user.subjectId,
+    taughtClassIds: user.taughtClassIds,
+    bio: user.bio,
+    createdAt: user.createdAt,
+  };
+
+  const existingIndex = localStore.userState.findIndex((candidate) => candidate._id === mapped._id);
+  if (existingIndex >= 0) {
+    localStore.userState[existingIndex] = {
+      ...localStore.userState[existingIndex],
+      ...mapped,
+    };
+    return localStore.userState[existingIndex];
+  }
+
+  localStore.userState = [mapped, ...localStore.userState];
+  return mapped;
+}
+
+function saveSessionToken(token: string | null) {
+  if (!canUseLocalStorage()) {
+    return;
+  }
+  if (!token) {
+    window.localStorage.removeItem(SESSION_TOKEN_KEY);
+    return;
+  }
+  window.localStorage.setItem(SESSION_TOKEN_KEY, token);
+}
+
 export function getSessionUser() {
   return getSessionUserFromStorage();
 }
@@ -28,6 +120,16 @@ export async function registerAccount(input: {
   provider: "email" | "oauth";
   classId?: string;
 }) {
+  if (canUseBackendAuth() && input.provider === "email") {
+    const payload = await postJson<{ user: BackendUser }>("/auth/register", {
+      name: input.name,
+      email: input.email,
+      password: input.password,
+      classId: input.classId,
+    });
+    return upsertBackendUser(payload.user);
+  }
+
   await delay(180);
   ensureAuthStateInitialized();
 
@@ -71,6 +173,17 @@ export async function registerAccount(input: {
 }
 
 export async function loginWithEmail(emailInput: string, passwordInput: string) {
+  if (canUseBackendAuth()) {
+    const payload = await postJson<{ token: string; user: BackendUser }>("/auth/login", {
+      email: emailInput,
+      password: passwordInput,
+    });
+    const user = upsertBackendUser(payload.user);
+    setSessionUser(user._id);
+    saveSessionToken(payload.token);
+    return user;
+  }
+
   await delay(140);
   ensureAuthStateInitialized();
 
@@ -95,6 +208,16 @@ export async function loginWithEmail(emailInput: string, passwordInput: string) 
 }
 
 export async function loginWithOAuth(emailInput: string) {
+  if (canUseBackendAuth()) {
+    const payload = await postJson<{ token: string; user: BackendUser }>("/auth/oauth", {
+      email: emailInput,
+    });
+    const user = upsertBackendUser(payload.user);
+    setSessionUser(user._id);
+    saveSessionToken(payload.token);
+    return user;
+  }
+
   await delay(120);
   ensureAuthStateInitialized();
 
@@ -113,6 +236,7 @@ export async function loginWithOAuth(emailInput: string) {
 }
 
 export async function logout(activeUserId?: string) {
+  saveSessionToken(null);
   await delay(50);
   if (activeUserId) {
     const user = localStore.userState.find((candidate) => candidate._id === activeUserId);
