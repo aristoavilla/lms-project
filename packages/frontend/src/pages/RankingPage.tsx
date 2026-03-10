@@ -44,6 +44,8 @@ export function RankingPage({ user }: Props) {
     user,
     batchClasses.map((item) => item.id),
   );
+  const batchError = batchClassOverallQueries.find((query) => query.error)?.error;
+  const pageError = subjects.error ?? users.error ?? mainOverall.error ?? mainBySubject.error ?? byOwnSubjectClass.error ?? batchError;
 
   const rankingItems = (() => {
     if (isTeacher) {
@@ -128,6 +130,15 @@ export function RankingPage({ user }: Props) {
         <h1>Student Rankings</h1>
         <p>Academic performance rankings</p>
       </div>
+      {pageError ? (
+        <article className="panel">
+          <p className="error-text">
+            {pageError instanceof Error
+              ? pageError.message
+              : "Failed to load ranking data from backend."}
+          </p>
+        </article>
+      ) : null}
 
       {isTeacher ? (
         <>

@@ -36,6 +36,7 @@ export function AnnouncementsPage({ user }: Props) {
       await queryClient.invalidateQueries({ queryKey: ["announcements", user.role, user.classId] });
     },
   });
+  const pageError = announcements.error ?? users.error ?? create.error ?? update.error ?? remove.error;
 
   const userMap = new Map((users.data ?? []).map((candidate) => [candidate._id, candidate]));
 
@@ -54,6 +55,13 @@ export function AnnouncementsPage({ user }: Props) {
       </div>
 
       <article className="panel">
+        {pageError ? (
+          <p className="error-text">
+            {pageError instanceof Error
+              ? pageError.message
+              : "Failed to load announcements from backend."}
+          </p>
+        ) : null}
         <div className="stack-list">
           {(announcements.data ?? []).map((announcement) => (
             <article key={announcement._id} className="item-card">

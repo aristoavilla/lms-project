@@ -27,6 +27,7 @@ export function AttendancePage({ user }: Props) {
   const [draftStatus, setDraftStatus] = useState<Record<string, AttendanceStatus>>({});
   const [saveMessage, setSaveMessage] = useState<string>("");
   const [saveError, setSaveError] = useState<string>("");
+  const pageError = attendance.error ?? subjects.error ?? users.error ?? mark.error;
   const subjectName =
     (subjects.data ?? []).find((subject) => subject._id === user.subjectId)?.name ?? "Subject";
 
@@ -132,6 +133,15 @@ export function AttendancePage({ user }: Props) {
           <h1>My Attendance</h1>
           <p>View your attendance record</p>
         </div>
+        {pageError ? (
+          <article className="panel">
+            <p className="error-text">
+              {pageError instanceof Error
+                ? pageError.message
+                : "Failed to load attendance data from backend."}
+            </p>
+          </article>
+        ) : null}
         <div className="stat-grid">
           <article className="stat-card">
             <h3>Attendance Rate</h3>
@@ -198,6 +208,15 @@ export function AttendancePage({ user }: Props) {
         <h1>Attendance</h1>
         <p>Mark and manage student attendance</p>
       </div>
+      {pageError ? (
+        <article className="panel">
+          <p className="error-text">
+            {pageError instanceof Error
+              ? pageError.message
+              : "Failed to load attendance data from backend."}
+          </p>
+        </article>
+      ) : null}
 
       {isMainTeacher && (
         <div className="pill-nav">

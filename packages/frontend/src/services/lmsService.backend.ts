@@ -11,10 +11,11 @@ import type {
   SubmissionType,
   User,
 } from "../types";
-import { getSessionUser } from "./local/auth";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "");
 const SESSION_TOKEN_KEY = "lms:session:token";
+const SESSION_USER_KEY = "lms:session:user";
+const DEFAULT_DEMO_PASSWORD = "Password123!";
 
 function requireApiBaseUrl() {
   if (!API_BASE_URL) {
@@ -30,6 +31,59 @@ function getSessionToken() {
   return window.localStorage.getItem(SESSION_TOKEN_KEY);
 }
 
+function saveSessionToken(token: string | null) {
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return;
+  }
+  if (!token) {
+    window.localStorage.removeItem(SESSION_TOKEN_KEY);
+    return;
+  }
+  window.localStorage.setItem(SESSION_TOKEN_KEY, token);
+}
+
+function saveSessionUser(user: User | null) {
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return;
+  }
+  if (!user) {
+    window.localStorage.removeItem(SESSION_USER_KEY);
+    return;
+  }
+  window.localStorage.setItem(SESSION_USER_KEY, JSON.stringify(user));
+}
+
+function clearSession() {
+  saveSessionToken(null);
+  saveSessionUser(null);
+}
+
+function parseStoredUser(raw: string | null): User | undefined {
+  if (!raw) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(raw) as User;
+  } catch {
+    return undefined;
+  }
+}
+
+function getStoredSessionUser() {
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return undefined;
+  }
+  return parseStoredUser(window.localStorage.getItem(SESSION_USER_KEY));
+}
+
+export function hasSessionToken() {
+  return Boolean(getSessionToken());
+}
+
+export function getDefaultSeededPassword() {
+  return DEFAULT_DEMO_PASSWORD;
+}
+
 function getAuthHeaders() {
   const token = getSessionToken();
   if (!token) {
@@ -39,6 +93,20 @@ function getAuthHeaders() {
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
   };
+}
+
+async function withAuthErrorHandling<T>(request: Promise<T>) {
+  try {
+    return await request;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown API error.";
+    const unauthorized = /401|403|token|unauthorized|expired/i.test(message);
+    if (unauthorized) {
+      clearSession();
+      throw new Error("Your session expired or is invalid. Please login again.");
+    }
+    throw error;
+  }
 }
 
 async function parseApiError(response: Response) {
@@ -52,58 +120,89 @@ async function parseApiError(response: Response) {
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const baseUrl = requireApiBaseUrl();
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-  if (!response.ok) {
-    throw new Error(await parseApiError(response));
-  }
-  return (await response.json()) as T;
+  return await withAuthErrorHandling(
+    (async () => {
+      const baseUrl = requireApiBaseUrl();
+      const response = await fetch(`${baseUrl}${path}`, {
+        method: "GET",
+        headers: getAuthHeaders(),
+      });
+      if (!response.ok) {
+        throw new Error(await parseApiError(response));
+      }
+      return (await response.json()) as T;
+    })(),
+  );
 }
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const baseUrl = requireApiBaseUrl();
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) {
-    throw new Error(await parseApiError(response));
-  }
-  if (response.status === 204) {
-    return null as T;
-  }
-  return (await response.json()) as T;
+  return await withAuthErrorHandling(
+    (async () => {
+      const baseUrl = requireApiBaseUrl();
+      const response = await fetch(`${baseUrl}${path}`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        throw new Error(await parseApiError(response));
+      }
+      if (response.status === 204) {
+        return null as T;
+      }
+      return (await response.json()) as T;
+    })(),
+  );
 }
 
 async function patchJson<T>(path: string, body: unknown): Promise<T> {
+  return await withAuthErrorHandling(
+    (async () => {
+      const baseUrl = requireApiBaseUrl();
+      const response = await fetch(`${baseUrl}${path}`, {
+        method: "PATCH",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        throw new Error(await parseApiError(response));
+      }
+      if (response.status === 204) {
+        return null as T;
+      }
+      return (await response.json()) as T;
+    })(),
+  );
+}
+
+async function deleteRequest(path: string): Promise<void> {
+  await withAuthErrorHandling(
+    (async () => {
+      const baseUrl = requireApiBaseUrl();
+      const response = await fetch(`${baseUrl}${path}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      if (!response.ok) {
+        throw new Error(await parseApiError(response));
+      }
+    })(),
+  );
+}
+
+async function postPublicJson<T>(path: string, body: unknown): Promise<T> {
   const baseUrl = requireApiBaseUrl();
   const response = await fetch(`${baseUrl}${path}`, {
-    method: "PATCH",
-    headers: getAuthHeaders(),
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
     throw new Error(await parseApiError(response));
   }
-  if (response.status === 204) {
-    return null as T;
-  }
   return (await response.json()) as T;
-}
-
-async function deleteRequest(path: string): Promise<void> {
-  const baseUrl = requireApiBaseUrl();
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: "DELETE",
-    headers: getAuthHeaders(),
-  });
-  if (!response.ok) {
-    throw new Error(await parseApiError(response));
-  }
 }
 
 interface ApiUser {
@@ -196,7 +295,87 @@ function mapAttendance(record: {
 }
 
 export function currentUserQuery(_userId: string) {
-  return getSessionUser();
+  return getStoredSessionUser();
+}
+
+export function getSessionUser() {
+  return getStoredSessionUser();
+}
+
+export async function restoreSessionUser() {
+  const cachedUser = getStoredSessionUser();
+  if (cachedUser) {
+    return cachedUser;
+  }
+
+  const token = getSessionToken();
+  if (!token) {
+    return undefined;
+  }
+
+  const baseUrl = requireApiBaseUrl();
+  const response = await fetch(`${baseUrl}/auth/me`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const message = await parseApiError(response);
+    clearSession();
+    throw new Error(message);
+  }
+
+  const payload = (await response.json()) as { user: ApiUser };
+  const user = mapUser(payload.user);
+  saveSessionUser(user);
+  return user;
+}
+
+export async function registerAccount(input: {
+  name: string;
+  email: string;
+  password?: string;
+  provider: "email" | "oauth";
+  classId?: string;
+}) {
+  if (input.provider !== "email") {
+    throw new Error("OAuth registration is not supported by this endpoint.");
+  }
+  const payload = await postPublicJson<{ user: ApiUser }>("/auth/register", {
+    name: input.name,
+    email: input.email,
+    password: input.password,
+    classId: input.classId,
+  });
+  return mapUser(payload.user);
+}
+
+export async function loginWithEmail(email: string, password: string) {
+  const payload = await postPublicJson<{ token: string; user: ApiUser }>("/auth/login", {
+    email,
+    password,
+  });
+  const user = mapUser(payload.user);
+  saveSessionToken(payload.token);
+  saveSessionUser(user);
+  return user;
+}
+
+export async function loginWithOAuth(email: string) {
+  const payload = await postPublicJson<{ token: string; user: ApiUser }>("/auth/oauth", {
+    email,
+  });
+  const user = mapUser(payload.user);
+  saveSessionToken(payload.token);
+  saveSessionUser(user);
+  return user;
+}
+
+export async function logout() {
+  clearSession();
 }
 
 export async function getAllUsers() {
@@ -357,6 +536,18 @@ export async function getOverallRanking(_user: User, classId?: string) {
 export async function listSubmissionsForAssignment(assignmentId: string) {
   const payload = await getJson<{ submissions: Submission[] }>(
     `/lms/assignments/${encodeURIComponent(assignmentId)}/submissions`,
+  );
+  return payload.submissions.map(mapSubmission);
+}
+
+export async function listMyVisibleSubmissions(assignmentIds: string[]) {
+  const uniqueAssignmentIds = Array.from(new Set(assignmentIds.filter((id) => id.trim().length > 0)));
+  if (uniqueAssignmentIds.length === 0) {
+    return [] as Submission[];
+  }
+  const query = encodeURIComponent(uniqueAssignmentIds.join(","));
+  const payload = await getJson<{ submissions: Submission[] }>(
+    `/lms/users/me/submissions?assignmentIds=${query}`,
   );
   return payload.submissions.map(mapSubmission);
 }

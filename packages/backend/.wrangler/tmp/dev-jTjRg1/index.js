@@ -32376,6 +32376,49 @@ lmsRoutes.get("/lms/assignments/:id/submissions", async (c) => {
     }))
   });
 });
+lmsRoutes.get("/lms/users/me/submissions", async (c) => {
+  const user = await getAuthUser(c);
+  if (!user) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  const rawAssignmentIds = c.req.query("assignmentIds") ?? "";
+  const requestedAssignmentIds = Array.from(
+    new Set(
+      rawAssignmentIds.split(",").map((value) => value.trim()).filter((value) => value.length > 0)
+    )
+  );
+  if (requestedAssignmentIds.length === 0) {
+    return c.json({ submissions: [] });
+  }
+  const db = getDb(c.env);
+  const assignmentRows = await db.select({ id: assignments.id, classId: assignments.classId }).from(assignments).where(inArray(assignments.id, requestedAssignmentIds));
+  let allowedAssignments = assignmentRows;
+  if (isStudentRole(user.role)) {
+    allowedAssignments = assignmentRows.filter((assignment) => assignment.classId === user.classId);
+  } else if (user.role === "main_teacher" || user.role === "specialized_teacher") {
+    const classIds = new Set(getTeacherClassIds(user));
+    allowedAssignments = assignmentRows.filter((assignment) => classIds.has(assignment.classId));
+  }
+  if (allowedAssignments.length === 0) {
+    return c.json({ submissions: [] });
+  }
+  const allowedAssignmentIds = allowedAssignments.map((assignment) => assignment.id);
+  const submissionRows = await db.select().from(submissions).where(inArray(submissions.assignmentId, allowedAssignmentIds));
+  const visibleRows = isStudentRole(user.role) ? submissionRows.filter((submission) => submission.studentExternalId === user.id) : submissionRows;
+  return c.json({
+    submissions: visibleRows.map((row) => ({
+      _id: row.id,
+      assignmentId: row.assignmentId,
+      studentId: row.studentExternalId,
+      submissionType: row.submissionType,
+      payload: row.payload,
+      score: row.score ?? void 0,
+      comment: row.comment ?? void 0,
+      submittedAt: row.submittedAt,
+      late: row.late
+    }))
+  });
+});
 lmsRoutes.get("/lms/submissions/:id", async (c) => {
   const user = await getAuthUser(c);
   if (!user) {

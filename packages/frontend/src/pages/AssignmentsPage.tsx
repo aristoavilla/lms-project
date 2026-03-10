@@ -8,7 +8,7 @@ import {
   useSubjects,
   useUsers,
 } from "../hooks/useLmsQueries";
-import { listSubmissionsForAssignment } from "../services/lmsService";
+import { listMyVisibleSubmissions } from "../services/lmsService";
 import type { Submission, User } from "../types";
 
 interface Props {
@@ -60,24 +60,17 @@ export function AssignmentsPage({ user }: Props) {
   const assignmentSubmissionData = useQuery({
     queryKey: [
       "assignment-submissions-many",
-      visibleAssignments.map((assignment) => assignment._id).join(","),
+      visibleAssignments.map((assignment) => assignment._id).sort().join(","),
     ],
-    queryFn: async () => {
-      const rows = await Promise.all(
-        visibleAssignments.map(async (assignment) => {
-          const submissionRows = await listSubmissionsForAssignment(assignment._id);
-          return { assignmentId: assignment._id, submissions: submissionRows };
-        }),
-      );
-      return rows;
-    },
+    queryFn: () => listMyVisibleSubmissions(visibleAssignments.map((assignment) => assignment._id)),
     enabled: visibleAssignments.length > 0,
   });
 
   const submissionsByAssignment = useMemo(() => {
     const map = new Map<string, Submission[]>();
-    (assignmentSubmissionData.data ?? []).forEach((row) => {
-      map.set(row.assignmentId, row.submissions);
+    (assignmentSubmissionData.data ?? []).forEach((submission) => {
+      const current = map.get(submission.assignmentId) ?? [];
+      map.set(submission.assignmentId, [...current, submission]);
     });
     return map;
   }, [assignmentSubmissionData.data]);

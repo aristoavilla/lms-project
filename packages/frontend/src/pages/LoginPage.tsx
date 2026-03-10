@@ -9,6 +9,7 @@ import { roleLabel } from "../utils/rbac";
 
 interface Props {
   onLogin: (userId: string) => void;
+  initialError?: string | null;
 }
 
 const DEMO_ACCOUNTS = [
@@ -19,13 +20,13 @@ const DEMO_ACCOUNTS = [
   { email: "ahmad.aulia.student.1a1@school.edu", role: "regular_student" },
 ] as const;
 
-export function LoginPage({ onLogin }: Props) {
+export function LoginPage({ onLogin, initialError }: Props) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState(getDefaultSeededPassword());
   const [name, setName] = useState("");
   const [classId, setClassId] = useState("class-1A");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError ?? null);
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const demoPassword = getDefaultSeededPassword();

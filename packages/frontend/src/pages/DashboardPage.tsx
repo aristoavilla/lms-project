@@ -9,7 +9,7 @@ import {
   useSubjects,
   useUsers,
 } from "../hooks/useLmsQueries";
-import { listSubmissionsForAssignment } from "../services/lmsService";
+import { listMyVisibleSubmissions } from "../services/lmsService";
 import type { Submission, User } from "../types";
 
 interface Props {
@@ -38,16 +38,42 @@ export function DashboardPage({ user }: Props) {
     return assignmentItems.filter((assignment) => taughtClassIds.includes(assignment.classId));
   }, [assignmentItems, isTeacher, taughtClassIds]);
 
+  const submissionAssignmentKey = useMemo(
+    () => visibleAssignments.map((assignment) => assignment._id).sort().join(","),
+    [visibleAssignments],
+  );
+
   const submissionRows = useQuery({
-    queryKey: ["dashboard-submissions", visibleAssignments.map((a) => a._id).join(",")],
-    queryFn: async () => {
-      const groups = await Promise.all(
-        visibleAssignments.map((assignment) => listSubmissionsForAssignment(assignment._id)),
-      );
-      return groups.flat();
-    },
+    queryKey: ["dashboard-submissions", submissionAssignmentKey],
+    queryFn: () => listMyVisibleSubmissions(visibleAssignments.map((assignment) => assignment._id)),
     enabled: visibleAssignments.length > 0,
   });
+
+  const dashboardError =
+    assignments.error ??
+    announcements.error ??
+    attendance.error ??
+    users.error ??
+    subjects.error ??
+    submissionRows.error;
+
+  if (dashboardError) {
+    return (
+      <div className="page">
+        <div className="page-header">
+          <h1>Dashboard</h1>
+          <p>Welcome back, {user.name}</p>
+        </div>
+        <article className="panel">
+          <p className="error-text">
+            {dashboardError instanceof Error
+              ? dashboardError.message
+              : "Failed to load dashboard data from backend."}
+          </p>
+        </article>
+      </div>
+    );
+  }
 
   const mySubmissions = useMemo(
     () =>

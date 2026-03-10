@@ -14,7 +14,13 @@ import { RankingPage } from "./pages/RankingPage";
 import { SubmissionDetailPage } from "./pages/SubmissionDetailPage";
 import { SubjectDetailPage } from "./pages/SubjectDetailPage";
 import { SuperAdminPage } from "./pages/SuperAdminPage";
-import { currentUserQuery, getSessionUser, logout, restoreSessionUser } from "./services/lmsService";
+import {
+  currentUserQuery,
+  getSessionUser,
+  hasSessionToken,
+  logout,
+  restoreSessionUser,
+} from "./services/lmsService";
 import type { User } from "./types";
 import { canViewRanking, isSuperAdmin } from "./utils/rbac";
 import "./App.css";
@@ -22,7 +28,8 @@ import "./App.css";
 function App() {
   const queryClient = useQueryClient();
   const [activeUser, setActiveUser] = useState<string | null>(() => getSessionUser()?._id ?? null);
-  const [restoringSession, setRestoringSession] = useState(() => activeUser === null);
+  const [bootError, setBootError] = useState<string | null>(null);
+  const [bootstrapping, setBootstrapping] = useState(() => activeUser === null && hasSessionToken());
   const user = useMemo<User | undefined>(
     () => (activeUser ? currentUserQuery(activeUser) : undefined),
     [activeUser],
@@ -30,12 +37,19 @@ function App() {
 
   useEffect(() => {
     if (activeUser) {
-      setRestoringSession(false);
+      setBootstrapping(false);
       return;
     }
 
     let disposed = false;
-    setRestoringSession(true);
+
+    if (!hasSessionToken()) {
+      setBootstrapping(false);
+      return;
+    }
+
+    setBootstrapping(true);
+    setBootError(null);
 
     void (async () => {
       try {
@@ -43,9 +57,13 @@ function App() {
         if (!disposed && restored) {
           setActiveUser(restored._id);
         }
+      } catch (error) {
+        if (!disposed) {
+          setBootError(error instanceof Error ? error.message : "Unable to restore your session.");
+        }
       } finally {
         if (!disposed) {
-          setRestoringSession(false);
+          setBootstrapping(false);
         }
       }
     })();
@@ -56,22 +74,23 @@ function App() {
   }, [activeUser]);
 
   async function handleLogout() {
-    await logout(activeUser ?? undefined);
+    await logout();
     queryClient.clear();
     setActiveUser(null);
+    setBootError(null);
   }
 
-  if (restoringSession) {
+  if (bootstrapping) {
     return (
       <div className="gate-screen">
-        <h1>Restoring Session</h1>
-        <p>Please wait while we restore your account.</p>
+        <h1>Loading</h1>
+        <p>Loading your account...</p>
       </div>
     );
   }
 
   if (!user) {
-    return <LoginPage onLogin={setActiveUser} />;
+    return <LoginPage onLogin={setActiveUser} initialError={bootError} />;
   }
 
   if (!user.approved) {
