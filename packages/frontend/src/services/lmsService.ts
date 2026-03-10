@@ -1,6 +1,7 @@
 export {
 	getDefaultSeededPassword,
 	getSessionUser,
+	restoreSessionUser,
 	registerAccount,
 	loginWithEmail,
 	loginWithOAuth,

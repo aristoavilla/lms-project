@@ -30,6 +30,7 @@ interface BackendUser {
   subjectId?: string;
   taughtClassIds?: string[];
   bio?: string;
+  profileImageUrl?: string;
   createdAt?: string;
 }
 
@@ -82,6 +83,7 @@ function upsertBackendUser(user: BackendUser): User {
     subjectId: user.subjectId,
     taughtClassIds: user.taughtClassIds,
     bio: user.bio,
+    profileImageUrl: user.profileImageUrl,
     createdAt: user.createdAt,
   };
 
@@ -109,8 +111,60 @@ function saveSessionToken(token: string | null) {
   window.localStorage.setItem(SESSION_TOKEN_KEY, token);
 }
 
+function getSessionToken() {
+  if (!canUseLocalStorage()) {
+    return null;
+  }
+  return window.localStorage.getItem(SESSION_TOKEN_KEY);
+}
+
 export function getSessionUser() {
   return getSessionUserFromStorage();
+}
+
+export async function restoreSessionUser() {
+  const existing = getSessionUserFromStorage();
+  if (existing) {
+    return existing;
+  }
+
+  if (!canUseBackendAuth()) {
+    return undefined;
+  }
+
+  const token = getSessionToken();
+  if (!token || !API_BASE_URL) {
+    return undefined;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2500);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/me`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      saveSessionToken(null);
+      setSessionUser(null);
+      return undefined;
+    }
+
+    const payload = (await response.json()) as { user: BackendUser };
+    const restored = upsertBackendUser(payload.user);
+    setSessionUser(restored._id);
+    return restored;
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export async function registerAccount(input: {

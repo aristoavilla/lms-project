@@ -29936,6 +29936,7 @@ var users = pgTable("users", {
   approved: boolean("approved").notNull().default(false),
   classId: text("class_id").notNull(),
   bio: text("bio"),
+  profileImageUrl: text("profile_image_url"),
   subjectId: text("subject_id"),
   taughtClassIds: jsonb("taught_class_ids").$type(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull()
@@ -31466,6 +31467,7 @@ function toPublicUser(user) {
     subjectId: user.subjectId ?? void 0,
     taughtClassIds: user.taughtClassIds ?? void 0,
     bio: user.bio ?? void 0,
+    profileImageUrl: user.profileImageUrl ?? void 0,
     createdAt: user.createdAt.toISOString()
   };
 }
@@ -31509,6 +31511,7 @@ authRoutes.post("/auth/register", zValidator("json", registerSchema), async (c) 
     subjectId: users.subjectId,
     taughtClassIds: users.taughtClassIds,
     bio: users.bio,
+    profileImageUrl: users.profileImageUrl,
     createdAt: users.createdAt
   });
   return c.json({ user: toPublicUser(created) }, 201);
@@ -31527,6 +31530,7 @@ authRoutes.post("/auth/login", zValidator("json", loginSchema), async (c) => {
     subjectId: users.subjectId,
     taughtClassIds: users.taughtClassIds,
     bio: users.bio,
+    profileImageUrl: users.profileImageUrl,
     createdAt: users.createdAt
   }).from(users).where(and(eq(users.email, body.email), eq(users.passwordHash, body.password))).limit(1);
   if (!user) {
@@ -31549,6 +31553,7 @@ authRoutes.post("/auth/oauth", zValidator("json", oauthSchema), async (c) => {
     subjectId: users.subjectId,
     taughtClassIds: users.taughtClassIds,
     bio: users.bio,
+    profileImageUrl: users.profileImageUrl,
     createdAt: users.createdAt
   }).from(users).where(eq(users.email, body.email)).limit(1);
   if (!user) {
@@ -31581,6 +31586,7 @@ authRoutes.get("/auth/me", async (c) => {
       subjectId: users.subjectId,
       taughtClassIds: users.taughtClassIds,
       bio: users.bio,
+      profileImageUrl: users.profileImageUrl,
       createdAt: users.createdAt
     }).from(users).where(eq(users.id, userId)).limit(1);
     if (!user) {
@@ -31613,6 +31619,7 @@ function toPublicUser2(row) {
     subjectId: row.subjectId ?? void 0,
     taughtClassIds: row.taughtClassIds ?? void 0,
     bio: row.bio ?? void 0,
+    profileImageUrl: row.profileImageUrl ?? void 0,
     createdAt: row.createdAt.toISOString()
   };
 }
@@ -31655,6 +31662,7 @@ async function getAuthUser(c) {
     subjectId: users.subjectId,
     taughtClassIds: users.taughtClassIds,
     bio: users.bio,
+    profileImageUrl: users.profileImageUrl,
     createdAt: users.createdAt
   }).from(users).where(eq(users.id, userId)).limit(1);
   if (!row) {
@@ -31727,7 +31735,8 @@ var markAttendanceSchema = external_exports.object({
 });
 var updateProfileSchema = external_exports.object({
   name: external_exports.string().min(1),
-  bio: external_exports.string().optional().default("")
+  bio: external_exports.string().optional().default(""),
+  profileImageUrl: external_exports.string().max(5e6).nullable().optional()
 });
 var sendMessageSchema = external_exports.object({
   chatId: external_exports.string().optional(),
@@ -31758,6 +31767,7 @@ lmsRoutes.get("/lms/users", async (c) => {
     subjectId: users.subjectId,
     taughtClassIds: users.taughtClassIds,
     bio: users.bio,
+    profileImageUrl: users.profileImageUrl,
     createdAt: users.createdAt
   }).from(users);
   const mapped = rows.map(toPublicUser2);
@@ -32401,6 +32411,7 @@ lmsRoutes.get("/lms/submissions/:id", async (c) => {
     subjectId: users.subjectId,
     taughtClassIds: users.taughtClassIds,
     bio: users.bio,
+    profileImageUrl: users.profileImageUrl,
     createdAt: users.createdAt
   }).from(users).where(or(eq(users.externalId, submission.studentExternalId), eq(users.id, submission.studentExternalId))).limit(1);
   return c.json({
@@ -32504,6 +32515,7 @@ lmsRoutes.get("/lms/profiles", async (c) => {
     subjectId: users.subjectId,
     taughtClassIds: users.taughtClassIds,
     bio: users.bio,
+    profileImageUrl: users.profileImageUrl,
     createdAt: users.createdAt
   }).from(users).where(authUser.role === "super_admin" ? void 0 : and(eq(users.classId, authUser.classId), eq(users.approved, true)));
   const mapped = rows.map((row) => {
@@ -32522,7 +32534,11 @@ lmsRoutes.patch("/lms/users/me/profile", async (c) => {
     return c.json({ error: "Invalid payload" }, 400);
   }
   const db = getDb(c.env);
-  const [updated] = await db.update(users).set({ name: parsed.data.name.trim(), bio: parsed.data.bio.trim() }).where(eq(users.id, authUser.dbId)).returning({
+  const [updated] = await db.update(users).set({
+    name: parsed.data.name.trim(),
+    bio: parsed.data.bio.trim(),
+    profileImageUrl: parsed.data.profileImageUrl === void 0 ? authUser.profileImageUrl ?? null : parsed.data.profileImageUrl
+  }).where(eq(users.id, authUser.dbId)).returning({
     id: users.id,
     externalId: users.externalId,
     name: users.name,
@@ -32533,6 +32549,7 @@ lmsRoutes.patch("/lms/users/me/profile", async (c) => {
     subjectId: users.subjectId,
     taughtClassIds: users.taughtClassIds,
     bio: users.bio,
+    profileImageUrl: users.profileImageUrl,
     createdAt: users.createdAt
   });
   const { dbId, ...publicUser } = toPublicUser2(updated);
@@ -32550,15 +32567,6 @@ lmsRoutes.get("/lms/chats/threads", async (c) => {
       sql`${chats.participantExternalIds} ? ${user.id}`
     )
   );
-  const chatIds = chatRows.map((chat) => chat.id);
-  const messageRows = chatIds.length > 0 ? await db.select().from(messages).where(inArray(messages.chatId, chatIds)) : [];
-  const byChat = /* @__PURE__ */ new Map();
-  for (const row of messageRows) {
-    const current = byChat.get(row.chatId);
-    if (!current || new Date(row.createdAt) > new Date(current)) {
-      byChat.set(row.chatId, row.createdAt);
-    }
-  }
   const threads = chatRows.map((chat) => ({
     chat: {
       _id: chat.id,
@@ -32571,7 +32579,7 @@ lmsRoutes.get("/lms/chats/threads", async (c) => {
     },
     title: chat.type === "direct" ? "Direct Message" : chat.type === "subject" ? `Subject ${chat.subjectId ?? ""}` : `Class ${chat.classId}`,
     unreadCount: 0,
-    lastMessageAt: byChat.get(chat.id) ?? null
+    lastMessageAt: chat.lastMessageAt ?? null
   })).sort((a2, b2) => {
     const left = a2.lastMessageAt ? +new Date(a2.lastMessageAt) : +new Date(a2.chat.createdAt);
     const right = b2.lastMessageAt ? +new Date(b2.lastMessageAt) : +new Date(b2.chat.createdAt);
@@ -32759,6 +32767,7 @@ lmsRoutes.get("/lms/chats/direct-contacts", async (c) => {
     subjectId: users.subjectId,
     taughtClassIds: users.taughtClassIds,
     bio: users.bio,
+    profileImageUrl: users.profileImageUrl,
     createdAt: users.createdAt
   }).from(users).where(and(eq(users.classId, user.classId), eq(users.approved, true)));
   const contacts = rows.map(toPublicUser2).filter((candidate) => candidate.id !== user.id).map(({ dbId, ...rest }) => rest);
@@ -36869,7 +36878,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-Sr2A8r/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-qK0q3e/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -36901,7 +36910,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-Sr2A8r/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-qK0q3e/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

@@ -116,6 +116,7 @@ interface ApiUser {
   subjectId?: string;
   taughtClassIds?: string[];
   bio?: string;
+  profileImageUrl?: string;
   createdAt?: string;
 }
 
@@ -130,8 +131,24 @@ function mapUser(user: ApiUser): User {
     subjectId: user.subjectId,
     taughtClassIds: user.taughtClassIds,
     bio: user.bio,
+    profileImageUrl: user.profileImageUrl,
     createdAt: user.createdAt,
   };
+}
+
+async function fileToDataUrl(file: File): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Failed to read profile image file."));
+    reader.onload = () => {
+      if (typeof reader.result !== "string") {
+        reject(new Error("Failed to process profile image file."));
+        return;
+      }
+      resolve(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function mapAssignment(assignment: {
@@ -379,9 +396,17 @@ export async function updateOwnProfile(
   _user: User,
   patch: { name: string; bio: string; profileImage?: File | null },
 ) {
+  const profileImageUrl =
+    patch.profileImage === undefined
+      ? undefined
+      : patch.profileImage === null
+        ? null
+        : await fileToDataUrl(patch.profileImage);
+
   const payload = await patchJson<{ profile: ApiUser }>("/lms/users/me/profile", {
     name: patch.name,
     bio: patch.bio,
+    profileImageUrl,
   });
   return mapUser(payload.profile);
 }

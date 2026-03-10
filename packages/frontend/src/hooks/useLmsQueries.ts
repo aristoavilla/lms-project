@@ -208,7 +208,9 @@ export function useChatThreads(user: User, options?: { enabled?: boolean }) {
     queryKey: ["chat-threads", user._id],
     queryFn: () => lms.listChatThreadsForUser(user),
     enabled: options?.enabled ?? true,
-    refetchInterval: 2500,
+    refetchInterval: 8000,
+    refetchIntervalInBackground: false,
+    staleTime: 3000,
   });
 }
 
@@ -222,7 +224,9 @@ export function useChatMessages(user: User, chatId: string | null, options?: { e
       return lms.listMessagesForChat(user, chatId);
     },
     enabled: Boolean(chatId) && (options?.enabled ?? true),
-    refetchInterval: 1800,
+    refetchInterval: 5000,
+    refetchIntervalInBackground: false,
+    staleTime: 2000,
   });
 }
 

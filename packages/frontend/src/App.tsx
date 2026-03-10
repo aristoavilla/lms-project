@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { BrowserRouter } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -14,7 +14,7 @@ import { RankingPage } from "./pages/RankingPage";
 import { SubmissionDetailPage } from "./pages/SubmissionDetailPage";
 import { SubjectDetailPage } from "./pages/SubjectDetailPage";
 import { SuperAdminPage } from "./pages/SuperAdminPage";
-import { currentUserQuery, getSessionUser, logout } from "./services/lmsService";
+import { currentUserQuery, getSessionUser, logout, restoreSessionUser } from "./services/lmsService";
 import type { User } from "./types";
 import { canViewRanking, isSuperAdmin } from "./utils/rbac";
 import "./App.css";
@@ -22,15 +22,52 @@ import "./App.css";
 function App() {
   const queryClient = useQueryClient();
   const [activeUser, setActiveUser] = useState<string | null>(() => getSessionUser()?._id ?? null);
+  const [restoringSession, setRestoringSession] = useState(() => activeUser === null);
   const user = useMemo<User | undefined>(
     () => (activeUser ? currentUserQuery(activeUser) : undefined),
     [activeUser],
   );
 
+  useEffect(() => {
+    if (activeUser) {
+      setRestoringSession(false);
+      return;
+    }
+
+    let disposed = false;
+    setRestoringSession(true);
+
+    void (async () => {
+      try {
+        const restored = await restoreSessionUser();
+        if (!disposed && restored) {
+          setActiveUser(restored._id);
+        }
+      } finally {
+        if (!disposed) {
+          setRestoringSession(false);
+        }
+      }
+    })();
+
+    return () => {
+      disposed = true;
+    };
+  }, [activeUser]);
+
   async function handleLogout() {
     await logout(activeUser ?? undefined);
     queryClient.clear();
     setActiveUser(null);
+  }
+
+  if (restoringSession) {
+    return (
+      <div className="gate-screen">
+        <h1>Restoring Session</h1>
+        <p>Please wait while we restore your account.</p>
+      </div>
+    );
   }
 
   if (!user) {

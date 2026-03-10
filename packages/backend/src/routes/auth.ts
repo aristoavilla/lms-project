@@ -18,6 +18,7 @@ function toPublicUser(user: {
   subjectId: string | null;
   taughtClassIds: string[] | null;
   bio: string | null;
+  profileImageUrl: string | null;
   createdAt: Date;
 }) {
   return {
@@ -30,6 +31,7 @@ function toPublicUser(user: {
     subjectId: user.subjectId ?? undefined,
     taughtClassIds: user.taughtClassIds ?? undefined,
     bio: user.bio ?? undefined,
+    profileImageUrl: user.profileImageUrl ?? undefined,
     createdAt: user.createdAt.toISOString(),
   };
 }
@@ -87,6 +89,7 @@ authRoutes.post("/auth/register", zValidator("json", registerSchema), async (c) 
       subjectId: users.subjectId,
       taughtClassIds: users.taughtClassIds,
       bio: users.bio,
+      profileImageUrl: users.profileImageUrl,
       createdAt: users.createdAt,
     });
 
@@ -109,6 +112,7 @@ authRoutes.post("/auth/login", zValidator("json", loginSchema), async (c) => {
       subjectId: users.subjectId,
       taughtClassIds: users.taughtClassIds,
       bio: users.bio,
+      profileImageUrl: users.profileImageUrl,
       createdAt: users.createdAt,
     })
     .from(users)
@@ -139,6 +143,7 @@ authRoutes.post("/auth/oauth", zValidator("json", oauthSchema), async (c) => {
       subjectId: users.subjectId,
       taughtClassIds: users.taughtClassIds,
       bio: users.bio,
+      profileImageUrl: users.profileImageUrl,
       createdAt: users.createdAt,
     })
     .from(users)
@@ -181,6 +186,7 @@ authRoutes.get("/auth/me", async (c) => {
         subjectId: users.subjectId,
         taughtClassIds: users.taughtClassIds,
         bio: users.bio,
+        profileImageUrl: users.profileImageUrl,
         createdAt: users.createdAt,
       })
       .from(users)

@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { getDb } from "../db/client";
@@ -28,6 +28,7 @@ type PublicUser = {
   subjectId?: string;
   taughtClassIds?: string[];
   bio?: string;
+  profileImageUrl?: string;
   createdAt?: string;
 };
 
@@ -45,6 +46,7 @@ function toPublicUser(row: {
   subjectId: string | null;
   taughtClassIds: string[] | null;
   bio: string | null;
+  profileImageUrl: string | null;
   createdAt: Date;
 }): PublicUser {
   return {
@@ -58,6 +60,7 @@ function toPublicUser(row: {
     subjectId: row.subjectId ?? undefined,
     taughtClassIds: row.taughtClassIds ?? undefined,
     bio: row.bio ?? undefined,
+    profileImageUrl: row.profileImageUrl ?? undefined,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -102,6 +105,7 @@ async function getAuthUser(c: { req: { header: (name: string) => string | undefi
       subjectId: users.subjectId,
       taughtClassIds: users.taughtClassIds,
       bio: users.bio,
+      profileImageUrl: users.profileImageUrl,
       createdAt: users.createdAt,
     })
     .from(users)
@@ -189,6 +193,7 @@ const markAttendanceSchema = z.object({
 const updateProfileSchema = z.object({
   name: z.string().min(1),
   bio: z.string().optional().default(""),
+  profileImageUrl: z.string().max(5_000_000).nullable().optional(),
 });
 
 const sendMessageSchema = z.object({
@@ -225,6 +230,7 @@ lmsRoutes.get("/lms/users", async (c) => {
       subjectId: users.subjectId,
       taughtClassIds: users.taughtClassIds,
       bio: users.bio,
+      profileImageUrl: users.profileImageUrl,
       createdAt: users.createdAt,
     })
     .from(users);
@@ -1008,6 +1014,7 @@ lmsRoutes.get("/lms/submissions/:id", async (c) => {
       subjectId: users.subjectId,
       taughtClassIds: users.taughtClassIds,
       bio: users.bio,
+      profileImageUrl: users.profileImageUrl,
       createdAt: users.createdAt,
     })
     .from(users)
@@ -1144,6 +1151,7 @@ lmsRoutes.get("/lms/profiles", async (c) => {
       subjectId: users.subjectId,
       taughtClassIds: users.taughtClassIds,
       bio: users.bio,
+      profileImageUrl: users.profileImageUrl,
       createdAt: users.createdAt,
     })
     .from(users)
@@ -1170,7 +1178,14 @@ lmsRoutes.patch("/lms/users/me/profile", async (c) => {
   const db = getDb(c.env);
   const [updated] = await db
     .update(users)
-    .set({ name: parsed.data.name.trim(), bio: parsed.data.bio.trim() })
+    .set({
+      name: parsed.data.name.trim(),
+      bio: parsed.data.bio.trim(),
+      profileImageUrl:
+        parsed.data.profileImageUrl === undefined
+          ? authUser.profileImageUrl ?? null
+          : parsed.data.profileImageUrl,
+    })
     .where(eq(users.id, authUser.dbId))
     .returning({
       id: users.id,
@@ -1183,6 +1198,7 @@ lmsRoutes.patch("/lms/users/me/profile", async (c) => {
       subjectId: users.subjectId,
       taughtClassIds: users.taughtClassIds,
       bio: users.bio,
+      profileImageUrl: users.profileImageUrl,
       createdAt: users.createdAt,
     });
 
@@ -1209,22 +1225,6 @@ lmsRoutes.get("/lms/chats/threads", async (c) => {
           ),
         );
 
-  const chatIds = chatRows.map((chat) => chat.id);
-  const messageRows = chatIds.length > 0
-    ? await db
-        .select()
-        .from(messages)
-        .where(inArray(messages.chatId, chatIds))
-    : [];
-
-  const byChat = new Map<string, string | null>();
-  for (const row of messageRows) {
-    const current = byChat.get(row.chatId);
-    if (!current || new Date(row.createdAt) > new Date(current)) {
-      byChat.set(row.chatId, row.createdAt);
-    }
-  }
-
   const threads = chatRows
     .map((chat) => ({
       chat: {
@@ -1238,7 +1238,7 @@ lmsRoutes.get("/lms/chats/threads", async (c) => {
       },
       title: chat.type === "direct" ? "Direct Message" : chat.type === "subject" ? `Subject ${chat.subjectId ?? ""}` : `Class ${chat.classId}`,
       unreadCount: 0,
-      lastMessageAt: byChat.get(chat.id) ?? null,
+      lastMessageAt: chat.lastMessageAt ?? null,
     }))
     .sort((a, b) => {
       const left = a.lastMessageAt ? +new Date(a.lastMessageAt) : +new Date(a.chat.createdAt);
@@ -1466,6 +1466,7 @@ lmsRoutes.get("/lms/chats/direct-contacts", async (c) => {
       subjectId: users.subjectId,
       taughtClassIds: users.taughtClassIds,
       bio: users.bio,
+      profileImageUrl: users.profileImageUrl,
       createdAt: users.createdAt,
     })
     .from(users)

@@ -10,6 +10,7 @@ export const users = pgTable("users", {
   approved: boolean("approved").notNull().default(false),
   classId: text("class_id").notNull(),
   bio: text("bio"),
+  profileImageUrl: text("profile_image_url"),
   subjectId: text("subject_id"),
   taughtClassIds: jsonb("taught_class_ids").$type<string[]>(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

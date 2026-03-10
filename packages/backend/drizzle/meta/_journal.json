@@ -15,6 +15,13 @@
       "when": 1773070316727,
       "tag": "0001_loud_leopardon",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773090000000,
+      "tag": "0002_profile_image_url",
+      "breakpoints": true
     }
   ]
 }
