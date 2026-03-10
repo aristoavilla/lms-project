@@ -4,7 +4,6 @@ compatibility_date = "2026-03-09"
 compatibility_flags = [ "nodejs_compat" ]
 
 [vars]
-DATABASE_URL = "postgresql://neondb_owner:npg_Rb2v7zrusFCV@ep-rough-star-ahdk7hoq-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 POSTHOG_HOST = "https://us.i.posthog.com"
 JWT_SECRET = "local-dev-super-secret-key-change-me"
 
