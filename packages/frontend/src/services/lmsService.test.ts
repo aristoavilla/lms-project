@@ -4,7 +4,7 @@ import {
   gradeSubmission,
   listAttendance,
   submitAssignment,
-} from "./lmsService";
+} from "./local/academics";
 import type { User } from "../types";
 
 const teacher: User = {

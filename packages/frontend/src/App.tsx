@@ -20,6 +20,7 @@ import {
   hasSessionToken,
   logout,
   restoreSessionUser,
+  SESSION_USER_UPDATED_EVENT,
 } from "./services/lmsService";
 import type { User } from "./types";
 import { canViewRanking, isSuperAdmin } from "./utils/rbac";
@@ -28,12 +29,22 @@ import "./App.css";
 function App() {
   const queryClient = useQueryClient();
   const [activeUser, setActiveUser] = useState<string | null>(() => getSessionUser()?._id ?? null);
+  const [sessionVersion, setSessionVersion] = useState(0);
   const [bootError, setBootError] = useState<string | null>(null);
   const [bootstrapping, setBootstrapping] = useState(() => activeUser === null && hasSessionToken());
   const user = useMemo<User | undefined>(
     () => (activeUser ? currentUserQuery(activeUser) : undefined),
-    [activeUser],
+    [activeUser, sessionVersion],
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const handleSessionUpdate = () => setSessionVersion((current) => current + 1);
+    window.addEventListener(SESSION_USER_UPDATED_EVENT, handleSessionUpdate);
+    return () => window.removeEventListener(SESSION_USER_UPDATED_EVENT, handleSessionUpdate);
+  }, []);
 
   useEffect(() => {
     if (activeUser) {

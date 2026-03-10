@@ -15,6 +15,7 @@ import type {
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "");
 const SESSION_TOKEN_KEY = "lms:session:token";
 const SESSION_USER_KEY = "lms:session:user";
+export const SESSION_USER_UPDATED_EVENT = "lms:session-user-updated";
 const DEFAULT_DEMO_PASSWORD = "Password123!";
 
 function requireApiBaseUrl() {
@@ -48,9 +49,11 @@ function saveSessionUser(user: User | null) {
   }
   if (!user) {
     window.localStorage.removeItem(SESSION_USER_KEY);
+    window.dispatchEvent(new CustomEvent(SESSION_USER_UPDATED_EVENT));
     return;
   }
   window.localStorage.setItem(SESSION_USER_KEY, JSON.stringify(user));
+  window.dispatchEvent(new CustomEvent(SESSION_USER_UPDATED_EVENT));
 }
 
 function clearSession() {
@@ -235,19 +238,36 @@ function mapUser(user: ApiUser): User {
   };
 }
 
-async function fileToDataUrl(file: File): Promise<string> {
-  return await new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Failed to read profile image file."));
-    reader.onload = () => {
-      if (typeof reader.result !== "string") {
-        reject(new Error("Failed to process profile image file."));
-        return;
-      }
-      resolve(reader.result);
-    };
-    reader.readAsDataURL(file);
+async function fileToBase64(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const chunkSize = 0x8000;
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function buildProfileImageKey(userId: string, fileName: string) {
+  const sanitized = fileName.toLowerCase().replace(/[^a-z0-9.\-_]/g, "-");
+  const extension = sanitized.includes(".") ? sanitized.split(".").pop() : undefined;
+  const extensionSuffix = extension ? `.${extension}` : "";
+  return `profile-${encodeURIComponent(userId)}-${Date.now()}${extensionSuffix}`;
+}
+
+async function uploadProfileImage(file: File, userId: string) {
+  const key = buildProfileImageKey(userId, file.name);
+  const payload = await postJson<{ ok: boolean; url: string }>("/storage/upload", {
+    key,
+    contentType: file.type || "application/octet-stream",
+    dataBase64: await fileToBase64(file),
   });
+
+  if (!payload.url) {
+    throw new Error("Profile image upload did not return a file URL.");
+  }
+
+  return payload.url;
 }
 
 function mapAssignment(assignment: {
@@ -584,7 +604,7 @@ export async function listVisibleProfiles(_user: User) {
 }
 
 export async function updateOwnProfile(
-  _user: User,
+  user: User,
   patch: { name: string; bio: string; profileImage?: File | null },
 ) {
   const profileImageUrl =
@@ -592,14 +612,16 @@ export async function updateOwnProfile(
       ? undefined
       : patch.profileImage === null
         ? null
-        : await fileToDataUrl(patch.profileImage);
+        : await uploadProfileImage(patch.profileImage, user._id);
 
   const payload = await patchJson<{ profile: ApiUser }>("/lms/users/me/profile", {
     name: patch.name,
     bio: patch.bio,
     profileImageUrl,
   });
-  return mapUser(payload.profile);
+  const updatedUser = mapUser(payload.profile);
+  saveSessionUser(updatedUser);
+  return updatedUser;
 }
 
 export async function listChatThreadsForUser(_user: User): Promise<ChatThread[]> {
