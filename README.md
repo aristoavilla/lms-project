@@ -82,6 +82,23 @@ Frontend API setup for Worker-backed auth:
 VITE_API_BASE_URL=http://127.0.0.1:8787
 ```
 
+## Deploy Frontend To Vercel
+
+This monorepo is configured so the frontend can be deployed from `packages/frontend`.
+
+1. Import the GitHub repository in Vercel.
+2. In project settings, set `Root Directory` to `packages/frontend`.
+3. Keep build settings aligned with `packages/frontend/vercel.json`:
+  - Install Command: `pnpm install --frozen-lockfile`
+  - Build Command: `pnpm build`
+  - Output Directory: `dist`
+4. Add required environment variables in Vercel:
+  - `VITE_API_BASE_URL` (your deployed backend base URL)
+  - `VITE_PUBLIC_POSTHOG_KEY` (optional)
+  - `VITE_PUBLIC_POSTHOG_HOST` (optional, defaults in app)
+
+The included Vercel rewrite rule routes SPA paths to `index.html` so deep links work correctly.
+
 Current frontend runtime uses the Neon-backed backend API adapter for LMS data and auth sessions.
 
 ## Validate
