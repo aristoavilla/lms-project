@@ -8,7 +8,7 @@ Single-school class-based LMS aligned to the provided PRD.
 - Backend API: Cloudflare Workers + Hono + TypeScript
 - Database and auth store: Neon (PostgreSQL) + Drizzle ORM
 - Cloud services: Cloudflare R2 (object storage) + Cloudflare Queues
-- Monitoring: PostHog (queued capture from backend, optional browser capture)
+- Monitoring: PostHog (session replay, web/product analytics, feature flags, error and log capture)
 
 ## Implemented PRD Areas
 
@@ -71,9 +71,24 @@ Frontend optional PostHog environment setup:
 
 ```bash
 # packages/frontend/.env.local
+VITE_PUBLIC_POSTHOG_ENABLED=true
 VITE_PUBLIC_POSTHOG_KEY=phc_xxxxx
 VITE_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
 ```
+
+Frontend PostHog integration captures:
+- Session replay
+- Page and interaction analytics
+- Auth/product events (login/logout/session restore)
+- Browser errors (global error and unhandled promise rejection)
+- App logs (`app_log` events)
+- Feature flags via PostHog client-side flags (`isFeatureEnabled` / `getFeatureFlagPayload`)
+
+Backend PostHog integration captures:
+- API request analytics (`api_request`)
+- Backend logs (`backend_log`)
+- Backend exceptions (`$exception`)
+- Uses Cloudflare Queue buffering before PostHog ingest
 
 Frontend API setup for Worker-backed auth:
 

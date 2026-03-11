@@ -11,6 +11,7 @@ import type {
   SubmissionType,
   User,
 } from "../types";
+import { captureError, captureEvent, captureLog } from "./posthog";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "");
 const SESSION_TOKEN_KEY = "lms:session:token";
@@ -104,6 +105,8 @@ async function withAuthErrorHandling<T>(request: Promise<T>) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown API error.";
     const unauthorized = /401|403|token|unauthorized|expired/i.test(message);
+    captureError(error, { source: "api_request", unauthorized });
+    captureLog("error", "API request failed", { message, unauthorized });
     if (unauthorized) {
       clearSession();
       throw new Error("Your session expired or is invalid. Please login again.");
@@ -344,6 +347,7 @@ export async function restoreSessionUser() {
 
   if (!response.ok) {
     const message = await parseApiError(response);
+    captureLog("warn", "Session restore failed", { message, status: response.status });
     clearSession();
     throw new Error(message);
   }
@@ -381,6 +385,12 @@ export async function loginWithEmail(email: string, password: string) {
   const user = mapUser(payload.user);
   saveSessionToken(payload.token);
   saveSessionUser(user);
+  captureEvent("user_login", {
+    method: "email",
+    userId: user._id,
+    role: user.role,
+    classId: user.classId,
+  });
   return user;
 }
 
@@ -391,10 +401,24 @@ export async function loginWithOAuth(email: string) {
   const user = mapUser(payload.user);
   saveSessionToken(payload.token);
   saveSessionUser(user);
+  captureEvent("user_login", {
+    method: "oauth",
+    userId: user._id,
+    role: user.role,
+    classId: user.classId,
+  });
   return user;
 }
 
 export async function logout() {
+  const user = getStoredSessionUser();
+  if (user) {
+    captureEvent("user_logout", {
+      userId: user._id,
+      role: user.role,
+      classId: user.classId,
+    });
+  }
   clearSession();
 }
 

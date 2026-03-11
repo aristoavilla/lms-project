@@ -22,6 +22,13 @@ import {
   restoreSessionUser,
   SESSION_USER_UPDATED_EVENT,
 } from "./services/lmsService";
+import {
+  captureError,
+  captureEvent,
+  identifyPosthogUser,
+  reloadFeatureFlags,
+  resetPosthogUser,
+} from "./services/posthog";
 import type { User } from "./types";
 import { canViewRanking, isSuperAdmin } from "./utils/rbac";
 import "./App.css";
@@ -67,10 +74,12 @@ function App() {
         const restored = await restoreSessionUser();
         if (!disposed && restored) {
           setActiveUser(restored._id);
+          captureEvent("session_restored", { userId: restored._id, role: restored.role });
         }
       } catch (error) {
         if (!disposed) {
           setBootError(error instanceof Error ? error.message : "Unable to restore your session.");
+          captureError(error, { source: "session_restore" });
         }
       } finally {
         if (!disposed) {
@@ -83,6 +92,23 @@ function App() {
       disposed = true;
     };
   }, [activeUser]);
+
+  useEffect(() => {
+    if (!user) {
+      resetPosthogUser();
+      return;
+    }
+
+    identifyPosthogUser({
+      id: user._id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      classId: user.classId,
+      subjectId: user.subjectId,
+    });
+    reloadFeatureFlags();
+  }, [user]);
 
   async function handleLogout() {
     await logout();
