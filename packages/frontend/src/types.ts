@@ -121,6 +121,26 @@ export interface FileAsset {
   url: string;
 }
 
+export type NotificationCategory =
+  | "assignment"
+  | "submission"
+  | "grading"
+  | "attendance"
+  | "announcement"
+  | "message";
+
+export interface Notification {
+  _id: string;
+  title: string;
+  body: string;
+  category: NotificationCategory;
+  resourceId?: string;
+  resourceType?: string;
+  actorName?: string;
+  read: boolean;
+  createdAt: string;
+}
+
 export interface Chat {
   _id: string;
   type: "class" | "subject" | "direct";

@@ -6,6 +6,7 @@ import { captureBackendError, captureBackendLog, getBackendDistinctId, queuePost
 import { authRoutes } from "./routes/auth";
 import { healthRoutes } from "./routes/health";
 import { lmsRoutes } from "./routes/lms";
+import { notificationRoutes } from "./routes/notifications";
 import { queueRoutes } from "./routes/queue";
 import { storageRoutes } from "./routes/storage";
 import { processEventBatch } from "./workers/queueConsumer";
@@ -62,6 +63,7 @@ app.use("*", async (c, next) => {
 app.route("/", healthRoutes);
 app.route("/", authRoutes);
 app.route("/", lmsRoutes);
+app.route("/", notificationRoutes);
 app.route("/", storageRoutes);
 app.route("/", queueRoutes);
 

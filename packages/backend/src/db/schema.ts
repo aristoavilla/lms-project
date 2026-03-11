@@ -113,4 +113,17 @@ export const messages = pgTable("messages", {
   deleted: boolean("deleted").notNull().default(false),
 });
 
+export const notifications = pgTable("notifications", {
+  id: text("id").primaryKey(),
+  recipientExternalId: text("recipient_external_id").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  category: text("category").notNull(),
+  resourceId: text("resource_id"),
+  resourceType: text("resource_type"),
+  actorName: text("actor_name"),
+  read: boolean("read").notNull().default(false),
+  createdAt: text("created_at").notNull(),
+});
+
 export type DbUser = typeof users.$inferSelect;

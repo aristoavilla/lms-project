@@ -29,6 +29,13 @@
       "when": 1773267515285,
       "tag": "0003_stiff_white_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1773360000000,
+      "tag": "0004_notifications",
+      "breakpoints": true
     }
   ]
 }

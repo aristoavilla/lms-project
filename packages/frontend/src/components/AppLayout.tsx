@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSubjects } from "../hooks/useLmsQueries";
 import type { User } from "../types";
 import { canViewRanking, isSuperAdmin, roleLabel } from "../utils/rbac";
+import { NotificationBell } from "./NotificationBell";
 
 interface Props {
   user: User;
@@ -160,6 +161,7 @@ export function AppLayout({ user, onLogout }: Props) {
               <strong>{displayName}</strong>
               <small>{roleLabel[user.role]}</small>
             </div>
+            <NotificationBell user={user} />
             <div className="user-menu-wrap" ref={menuRef}>
             <button
               type="button"

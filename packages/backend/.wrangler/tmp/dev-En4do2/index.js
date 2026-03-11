@@ -30089,6 +30089,18 @@ var messages = pgTable("messages", {
   editedAt: text("edited_at"),
   deleted: boolean("deleted").notNull().default(false)
 });
+var notifications = pgTable("notifications", {
+  id: text("id").primaryKey(),
+  recipientExternalId: text("recipient_external_id").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  category: text("category").notNull(),
+  resourceId: text("resource_id"),
+  resourceType: text("resource_type"),
+  actorName: text("actor_name"),
+  read: boolean("read").notNull().default(false),
+  createdAt: text("created_at").notNull()
+});
 
 // ../../node_modules/.pnpm/jose@6.2.0/node_modules/jose/dist/webapi/lib/buffer_utils.js
 var encoder = new TextEncoder();
@@ -31665,6 +31677,36 @@ healthRoutes.get("/health", (c) => {
   return c.json({ ok: true, now: (/* @__PURE__ */ new Date()).toISOString() });
 });
 
+// src/lib/notify.ts
+function buildMessage(payload) {
+  return {
+    type: "notification",
+    id: `notif-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+    ...payload
+  };
+}
+__name(buildMessage, "buildMessage");
+async function enqueueNotification(env, payload) {
+  try {
+    await env.LMS_QUEUE.send(buildMessage(payload));
+  } catch (err) {
+    console.error("[notify] Failed to enqueue notification", err);
+  }
+}
+__name(enqueueNotification, "enqueueNotification");
+async function enqueueNotifications(env, payloads) {
+  if (payloads.length === 0) return;
+  try {
+    await env.LMS_QUEUE.sendBatch(
+      payloads.map((payload) => ({ body: buildMessage(payload) }))
+    );
+  } catch (err) {
+    console.error("[notify] Failed to enqueue notification batch", err);
+  }
+}
+__name(enqueueNotifications, "enqueueNotifications");
+
 // src/routes/lms.ts
 var roleCanViewRanking = /* @__PURE__ */ new Set(["super_admin", "main_teacher", "specialized_teacher"]);
 var roleCanViewOverall = /* @__PURE__ */ new Set(["super_admin", "main_teacher"]);
@@ -31952,6 +31994,31 @@ lmsRoutes.post("/lms/assignments", async (c) => {
     createdByExternalId: user.id,
     assignmentType: "text"
   }).returning();
+  try {
+    const studentRows = await db.select({ externalId: users.externalId, id: users.id }).from(users).where(
+      and(
+        eq(users.classId, payload.classId),
+        or(eq(users.role, "regular_student"), eq(users.role, "administrative_student")),
+        eq(users.approved, true)
+      )
+    );
+    if (studentRows.length > 0) {
+      await enqueueNotifications(
+        c.env,
+        studentRows.map((r) => ({
+          recipientExternalId: r.externalId ?? r.id,
+          title: "New Assignment",
+          body: `${user.name} posted "${created.title}" \u2013 due ${created.deadline}`,
+          category: "assignment",
+          resourceId: created.id,
+          resourceType: "assignment",
+          actorName: user.name
+        }))
+      );
+    }
+  } catch (err) {
+    console.error("[lms] Failed to queue assignment notifications", err);
+  }
   return c.json({
     assignment: {
       _id: created.id,
@@ -32016,6 +32083,26 @@ lmsRoutes.post("/lms/announcements", async (c) => {
     createdAt,
     classId: user.classId
   }).returning();
+  try {
+    const classMembers = await db.select({ externalId: users.externalId, id: users.id }).from(users).where(and(eq(users.classId, user.classId), eq(users.approved, true)));
+    const recipients = classMembers.map((m2) => m2.externalId ?? m2.id).filter((id2) => id2 !== user.id);
+    if (recipients.length > 0) {
+      await enqueueNotifications(
+        c.env,
+        recipients.map((recipientExternalId) => ({
+          recipientExternalId,
+          title: "New Announcement",
+          body: `${user.name}: ${created.title}`,
+          category: "announcement",
+          resourceId: created.id,
+          resourceType: "announcement",
+          actorName: user.name
+        }))
+      );
+    }
+  } catch (err) {
+    console.error("[lms] Failed to queue announcement notifications", err);
+  }
   return c.json({
     announcement: {
       _id: created.id,
@@ -32119,6 +32206,22 @@ lmsRoutes.post("/lms/assignments/:id/submissions", async (c) => {
     submittedAt: now,
     late
   }).returning();
+  try {
+    const [subjectRow] = await db.select({ teacherExternalId: subjects.teacherExternalId }).from(subjects).where(eq(subjects.id, assignment.subjectId)).limit(1);
+    if (subjectRow?.teacherExternalId) {
+      await enqueueNotification(c.env, {
+        recipientExternalId: subjectRow.teacherExternalId,
+        title: "New Submission",
+        body: `${user.name} submitted "${assignment.title}"`,
+        category: "submission",
+        resourceId: created.id,
+        resourceType: "submission",
+        actorName: user.name
+      });
+    }
+  } catch (err) {
+    console.error("[lms] Failed to queue submission notification", err);
+  }
   return c.json({
     submission: {
       _id: created.id,
@@ -32162,6 +32265,19 @@ lmsRoutes.post("/lms/submissions/:id/grade", async (c) => {
     return c.json({ error: "Not authorized to grade this submission." }, 403);
   }
   const [updated] = await db.update(submissions).set({ score: Math.round(payload.data.score), comment: payload.data.comment ?? null }).where(eq(submissions.id, submissionId)).returning();
+  try {
+    await enqueueNotification(c.env, {
+      recipientExternalId: updated.studentExternalId,
+      title: "Assignment Graded",
+      body: `Your submission for "${assignment.title}" received ${updated.score ?? "?"} / ${assignment.totalScore}`,
+      category: "grading",
+      resourceId: updated.id,
+      resourceType: "submission",
+      actorName: user.name
+    });
+  } catch (err) {
+    console.error("[lms] Failed to queue grading notification", err);
+  }
   return c.json({
     submission: {
       _id: updated.id,
@@ -32243,6 +32359,21 @@ lmsRoutes.post("/lms/attendance", async (c) => {
     date: payload.data.date,
     status: payload.data.status
   }).onConflictDoNothing().returning();
+  if (created && payload.data.status !== "Present") {
+    try {
+      await enqueueNotification(c.env, {
+        recipientExternalId: payload.data.studentId,
+        title: "Attendance Marked",
+        body: `You were marked ${payload.data.status} on ${payload.data.date}`,
+        category: "attendance",
+        resourceId: created.id,
+        resourceType: "attendance",
+        actorName: user.name
+      });
+    } catch (err) {
+      console.error("[lms] Failed to queue attendance notification", err);
+    }
+  }
   return c.json({
     attendance: created ? {
       _id: created.id,
@@ -32783,6 +32914,22 @@ lmsRoutes.post("/lms/messages/send", async (c) => {
     deleted: false
   }).returning();
   await db.update(chats).set({ lastMessageAt: createdAt }).where(eq(chats.id, chatId));
+  if (payload.type === "direct" && payload.recipientUserId) {
+    try {
+      const preview = content.length > 80 ? `${content.slice(0, 80)}\u2026` : content;
+      await enqueueNotification(c.env, {
+        recipientExternalId: payload.recipientUserId,
+        title: "New Message",
+        body: `${user.name}: ${preview}`,
+        category: "message",
+        resourceId: chatId,
+        resourceType: "chat",
+        actorName: user.name
+      });
+    } catch (err) {
+      console.error("[lms] Failed to queue message notification", err);
+    }
+  }
   return c.json({
     message: {
       _id: created.id,
@@ -32876,6 +33023,65 @@ lmsRoutes.get("/lms/chats/direct-contacts", async (c) => {
   }).from(users).where(and(eq(users.classId, user.classId), eq(users.approved, true)));
   const contacts = rows.map(toPublicUser2).filter((candidate) => candidate.id !== user.id).map(({ dbId, ...rest }) => rest);
   return c.json({ contacts });
+});
+
+// src/routes/notifications.ts
+var notificationRoutes = new Hono2();
+async function getNotifUser(c) {
+  const authHeader = c.req.header("authorization");
+  if (!authHeader?.startsWith("Bearer ")) return null;
+  const token = authHeader.slice("Bearer ".length).trim();
+  try {
+    const payload = await verifyAccessToken(c.env, token);
+    const userId = payload.sub;
+    if (typeof userId !== "string") return null;
+    const db = getDb(c.env);
+    const [row] = await db.select({ id: users.id, externalId: users.externalId }).from(users).where(eq(users.id, userId)).limit(1);
+    if (!row) return null;
+    return { recipientId: row.externalId ?? row.id };
+  } catch {
+    return null;
+  }
+}
+__name(getNotifUser, "getNotifUser");
+notificationRoutes.get("/lms/notifications", async (c) => {
+  const auth = await getNotifUser(c);
+  if (!auth) return c.json({ error: "Unauthorized" }, 401);
+  const db = getDb(c.env);
+  const rows = await db.select().from(notifications).where(eq(notifications.recipientExternalId, auth.recipientId)).orderBy(desc(notifications.createdAt)).limit(50);
+  return c.json({
+    notifications: rows.map((row) => ({
+      _id: row.id,
+      title: row.title,
+      body: row.body,
+      category: row.category,
+      resourceId: row.resourceId ?? void 0,
+      resourceType: row.resourceType ?? void 0,
+      actorName: row.actorName ?? void 0,
+      read: row.read,
+      createdAt: row.createdAt
+    }))
+  });
+});
+notificationRoutes.post("/lms/notifications/read-all", async (c) => {
+  const auth = await getNotifUser(c);
+  if (!auth) return c.json({ error: "Unauthorized" }, 401);
+  const db = getDb(c.env);
+  await db.update(notifications).set({ read: true }).where(eq(notifications.recipientExternalId, auth.recipientId));
+  return c.body(null, 204);
+});
+notificationRoutes.post("/lms/notifications/:id/read", async (c) => {
+  const auth = await getNotifUser(c);
+  if (!auth) return c.json({ error: "Unauthorized" }, 401);
+  const db = getDb(c.env);
+  const notifId = c.req.param("id");
+  await db.update(notifications).set({ read: true }).where(
+    and(
+      eq(notifications.id, notifId),
+      eq(notifications.recipientExternalId, auth.recipientId)
+    )
+  );
+  return c.body(null, 204);
 });
 
 // src/routes/queue.ts
@@ -36921,24 +37127,53 @@ var PostHog = class extends PostHogBackendClient {
 
 // src/workers/queueConsumer.ts
 async function processEventBatch(batch, env) {
-  if (!env.POSTHOG_API_KEY) {
-    for (const message2 of batch.messages) {
+  const posthogMessages = [];
+  const notifRows = [];
+  for (const message2 of batch.messages) {
+    const body = message2.body;
+    if (body.type === "notification") {
+      notifRows.push({
+        id: body.id,
+        recipientExternalId: body.recipientExternalId,
+        title: body.title,
+        body: body.body,
+        category: body.category,
+        resourceId: body.resourceId ?? null,
+        resourceType: body.resourceType ?? null,
+        actorName: body.actorName ?? null,
+        read: false,
+        createdAt: body.createdAt
+      });
       message2.ack();
+    } else {
+      posthogMessages.push(message2);
     }
+  }
+  if (notifRows.length > 0) {
+    try {
+      const db = getDb(env);
+      await db.insert(notifications).values(notifRows).onConflictDoNothing();
+    } catch (err) {
+      console.error("[queue] Failed to persist notifications:", err);
+    }
+  }
+  if (posthogMessages.length === 0) return;
+  if (!env.POSTHOG_API_KEY) {
+    for (const msg of posthogMessages) msg.ack();
     return;
   }
   const posthog = new PostHog(env.POSTHOG_API_KEY, {
     host: env.POSTHOG_HOST ?? "https://us.i.posthog.com"
   });
   try {
-    for (const message2 of batch.messages) {
-      const event = message2.body;
+    for (const msg of posthogMessages) {
+      const ev = msg.body;
       posthog.capture({
-        event: event.event,
-        distinctId: event.distinctId,
-        properties: event.properties
+        event: ev.event,
+        distinctId: ev.distinctId,
+        properties: ev.properties
       });
-      message2.ack();
+      msg.ack();
     }
     await posthog.flush();
   } finally {
@@ -36995,6 +37230,7 @@ app.use("*", async (c, next) => {
 app.route("/", healthRoutes);
 app.route("/", authRoutes);
 app.route("/", lmsRoutes);
+app.route("/", notificationRoutes);
 app.route("/", storageRoutes);
 app.route("/", queueRoutes);
 app.onError(async (error48, c) => {

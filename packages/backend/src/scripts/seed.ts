@@ -131,6 +131,26 @@ function readSeedFile() {
 async function main() {
   const seed = readSeedFile();
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS "notifications" (
+      "id" text PRIMARY KEY,
+      "recipient_external_id" text NOT NULL,
+      "title" text NOT NULL,
+      "body" text NOT NULL,
+      "category" text NOT NULL,
+      "resource_id" text,
+      "resource_type" text,
+      "actor_name" text,
+      "read" boolean NOT NULL DEFAULT false,
+      "created_at" text NOT NULL
+    );
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS "notifications_recipient_idx"
+    ON "notifications"("recipient_external_id");
+  `;
+
   if (seed.classes?.length) {
     await db.insert(classes).values(
       seed.classes.map((row) => ({

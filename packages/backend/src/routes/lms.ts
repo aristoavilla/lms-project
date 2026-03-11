@@ -16,6 +16,7 @@ import {
 } from "../db/schema";
 import type { AppEnv } from "../env";
 import { verifyAccessToken } from "../lib/auth";
+import { enqueueNotification, enqueueNotifications } from "../lib/notify";
 
 type PublicUser = {
   id: string;
@@ -379,6 +380,35 @@ lmsRoutes.post("/lms/assignments", async (c) => {
     })
     .returning();
 
+  try {
+    const studentRows = await db
+      .select({ externalId: users.externalId, id: users.id })
+      .from(users)
+      .where(
+        and(
+          eq(users.classId, payload.classId),
+          or(eq(users.role, "regular_student"), eq(users.role, "administrative_student")),
+          eq(users.approved, true),
+        ),
+      );
+    if (studentRows.length > 0) {
+      await enqueueNotifications(
+        c.env,
+        studentRows.map((r) => ({
+          recipientExternalId: r.externalId ?? r.id,
+          title: "New Assignment",
+          body: `${user.name} posted "${created.title}" – due ${created.deadline}`,
+          category: "assignment" as const,
+          resourceId: created.id,
+          resourceType: "assignment",
+          actorName: user.name,
+        })),
+      );
+    }
+  } catch (err) {
+    console.error("[lms] Failed to queue assignment notifications", err);
+  }
+
   return c.json({
     assignment: {
       _id: created.id,
@@ -457,6 +487,32 @@ lmsRoutes.post("/lms/announcements", async (c) => {
       classId: user.classId,
     })
     .returning();
+
+  try {
+    const classMembers = await db
+      .select({ externalId: users.externalId, id: users.id })
+      .from(users)
+      .where(and(eq(users.classId, user.classId), eq(users.approved, true)));
+    const recipients = classMembers
+      .map((m) => m.externalId ?? m.id)
+      .filter((id) => id !== user.id);
+    if (recipients.length > 0) {
+      await enqueueNotifications(
+        c.env,
+        recipients.map((recipientExternalId) => ({
+          recipientExternalId,
+          title: "New Announcement",
+          body: `${user.name}: ${created.title}`,
+          category: "announcement" as const,
+          resourceId: created.id,
+          resourceType: "announcement",
+          actorName: user.name,
+        })),
+      );
+    }
+  } catch (err) {
+    console.error("[lms] Failed to queue announcement notifications", err);
+  }
 
   return c.json({
     announcement: {
@@ -585,6 +641,27 @@ lmsRoutes.post("/lms/assignments/:id/submissions", async (c) => {
     })
     .returning();
 
+  try {
+    const [subjectRow] = await db
+      .select({ teacherExternalId: subjects.teacherExternalId })
+      .from(subjects)
+      .where(eq(subjects.id, assignment.subjectId))
+      .limit(1);
+    if (subjectRow?.teacherExternalId) {
+      await enqueueNotification(c.env, {
+        recipientExternalId: subjectRow.teacherExternalId,
+        title: "New Submission",
+        body: `${user.name} submitted "${assignment.title}"`,
+        category: "submission",
+        resourceId: created.id,
+        resourceType: "submission",
+        actorName: user.name,
+      });
+    }
+  } catch (err) {
+    console.error("[lms] Failed to queue submission notification", err);
+  }
+
   return c.json({
     submission: {
       _id: created.id,
@@ -646,6 +723,20 @@ lmsRoutes.post("/lms/submissions/:id/grade", async (c) => {
     .set({ score: Math.round(payload.data.score), comment: payload.data.comment ?? null })
     .where(eq(submissions.id, submissionId))
     .returning();
+
+  try {
+    await enqueueNotification(c.env, {
+      recipientExternalId: updated.studentExternalId,
+      title: "Assignment Graded",
+      body: `Your submission for "${assignment.title}" received ${updated.score ?? "?"} / ${assignment.totalScore}`,
+      category: "grading",
+      resourceId: updated.id,
+      resourceType: "submission",
+      actorName: user.name,
+    });
+  } catch (err) {
+    console.error("[lms] Failed to queue grading notification", err);
+  }
 
   return c.json({
     submission: {
@@ -740,6 +831,22 @@ lmsRoutes.post("/lms/attendance", async (c) => {
     })
     .onConflictDoNothing()
     .returning();
+
+  if (created && payload.data.status !== "Present") {
+    try {
+      await enqueueNotification(c.env, {
+        recipientExternalId: payload.data.studentId,
+        title: "Attendance Marked",
+        body: `You were marked ${payload.data.status} on ${payload.data.date}`,
+        category: "attendance",
+        resourceId: created.id,
+        resourceType: "attendance",
+        actorName: user.name,
+      });
+    } catch (err) {
+      console.error("[lms] Failed to queue attendance notification", err);
+    }
+  }
 
   return c.json({
     attendance: created
@@ -1424,6 +1531,23 @@ lmsRoutes.post("/lms/messages/send", async (c) => {
     .returning();
 
   await db.update(chats).set({ lastMessageAt: createdAt }).where(eq(chats.id, chatId));
+
+  if (payload.type === "direct" && payload.recipientUserId) {
+    try {
+      const preview = content.length > 80 ? `${content.slice(0, 80)}…` : content;
+      await enqueueNotification(c.env, {
+        recipientExternalId: payload.recipientUserId,
+        title: "New Message",
+        body: `${user.name}: ${preview}`,
+        category: "message",
+        resourceId: chatId,
+        resourceType: "chat",
+        actorName: user.name,
+      });
+    } catch (err) {
+      console.error("[lms] Failed to queue message notification", err);
+    }
+  }
 
   return c.json({
     message: {

@@ -6,6 +6,7 @@ import type {
   ChatThread,
   FileAsset,
   Message,
+  Notification,
   RankedStudent,
   Submission,
   SubmissionType,
@@ -693,4 +694,17 @@ export async function softDeleteMessage(_user: User, messageId: string) {
 export async function listDirectContacts(_user: User) {
   const payload = await getJson<{ contacts: ApiUser[] }>("/lms/chats/direct-contacts");
   return payload.contacts.map(mapUser);
+}
+
+export async function getNotifications(): Promise<Notification[]> {
+  const payload = await getJson<{ notifications: Notification[] }>("/lms/notifications");
+  return payload.notifications;
+}
+
+export async function markNotificationRead(notificationId: string): Promise<void> {
+  await postJson<void>(`/lms/notifications/${encodeURIComponent(notificationId)}/read`, {});
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  await postJson<void>("/lms/notifications/read-all", {});
 }
