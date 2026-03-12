@@ -11,6 +11,9 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@opentelemetry/api-logs": "^0.207.0",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.207.0",
+    "@opentelemetry/sdk-logs": "^0.207.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@mui/material": "^7.3.5",

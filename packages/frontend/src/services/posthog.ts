@@ -1,4 +1,5 @@
 import posthog from "posthog-js";
+import { emitOtelLog, initOtelLogs } from "./otelLogs";
 
 const key = import.meta.env.VITE_PUBLIC_POSTHOG_KEY as string | undefined;
 const host = (import.meta.env.VITE_PUBLIC_POSTHOG_HOST as string | undefined) ?? "https://app.posthog.com";
@@ -59,6 +60,7 @@ function registerGlobalErrorHandlers() {
 
 export function initPosthog() {
   if (initialized || !key || !enabled) {
+    initOtelLogs();
     return;
   }
 
@@ -73,6 +75,7 @@ export function initPosthog() {
 
   initialized = true;
   registerGlobalErrorHandlers();
+  initOtelLogs();
 }
 
 export function identifyPosthogUser(user: PosthogUser) {
@@ -110,10 +113,13 @@ export function captureEvent(event: string, properties?: Record<string, unknown>
 }
 
 export function captureError(error: unknown, context?: Record<string, unknown>) {
+  const properties = toErrorProperties(error, context);
+  emitOtelLog("error", String(properties.message), properties);
+
   if (!canUsePosthog()) {
     return;
   }
-  posthog.capture("$exception", toErrorProperties(error, context));
+  posthog.capture("$exception", properties);
 }
 
 export function captureLog(
@@ -121,6 +127,8 @@ export function captureLog(
   message: string,
   context?: Record<string, unknown>,
 ) {
+  emitOtelLog(level, message, context);
+
   if (!canUsePosthog()) {
     return;
   }
