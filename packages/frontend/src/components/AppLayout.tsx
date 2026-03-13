@@ -7,6 +7,7 @@ import { NotificationBell } from "./NotificationBell";
 
 interface Props {
   user: User;
+  canAccessFeedback: boolean;
   onLogout: () => void;
 }
 
@@ -18,7 +19,7 @@ function Icon({ path }: { path: string }) {
   );
 }
 
-export function AppLayout({ user, onLogout }: Props) {
+export function AppLayout({ user, canAccessFeedback, onLogout }: Props) {
   const subjects = useSubjects(user);
   const location = useLocation();
   const navigate = useNavigate();
@@ -46,6 +47,7 @@ export function AppLayout({ user, onLogout }: Props) {
       attendance: "Attendance",
       announcements: "Announcements",
       chat: "Chat",
+      feedback: "Feedback",
       profile: "Profile",
       admin: "Admin",
       subjects: "Subject",
@@ -95,13 +97,19 @@ export function AppLayout({ user, onLogout }: Props) {
         show: true,
       },
       {
+        to: "/feedback",
+        label: "Feedback",
+        icon: "M4 12h16M4 6h16M4 18h10",
+        show: canAccessFeedback,
+      },
+      {
         to: "/admin",
         label: "Admin Panel",
         icon: "M12 2 3 6v6c0 5.2 3.7 9.4 9 10 5.3-.6 9-4.8 9-10V6zM9 12l2 2 4-4",
         show: isSuperAdmin(user),
       },
     ],
-    [user],
+    [canAccessFeedback, user],
   );
 
   useEffect(() => {

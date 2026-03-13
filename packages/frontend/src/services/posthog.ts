@@ -159,3 +159,15 @@ export function reloadFeatureFlags() {
   }
   posthog.reloadFeatureFlags();
 }
+
+export function onFeatureFlags(callback: () => void) {
+  if (!canUsePosthog()) {
+    return () => {};
+  }
+
+  const unsubscribe = posthog.onFeatureFlags(() => {
+    callback();
+  });
+
+  return typeof unsubscribe === "function" ? unsubscribe : () => {};
+}

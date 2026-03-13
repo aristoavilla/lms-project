@@ -8,6 +8,7 @@ import { AssignmentsPage } from "./pages/AssignmentsPage";
 import { AttendancePage } from "./pages/AttendancePage";
 import { ChatPage } from "./pages/ChatPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { FeedbackPage } from "./pages/FeedbackPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { RankingPage } from "./pages/RankingPage";
@@ -26,6 +27,8 @@ import {
   captureError,
   captureEvent,
   identifyPosthogUser,
+  isFeatureEnabled,
+  onFeatureFlags,
   reloadFeatureFlags,
   resetPosthogUser,
 } from "./services/posthog";
@@ -33,12 +36,15 @@ import type { User } from "./types";
 import { canViewRanking, isSuperAdmin } from "./utils/rbac";
 import "./App.css";
 
+const FEEDBACK_PAGE_FLAG = "feedback_page_access";
+
 function App() {
   const queryClient = useQueryClient();
   const [activeUser, setActiveUser] = useState<string | null>(() => getSessionUser()?._id ?? null);
   const [sessionVersion, setSessionVersion] = useState(0);
   const [bootError, setBootError] = useState<string | null>(null);
   const [bootstrapping, setBootstrapping] = useState(() => activeUser === null && hasSessionToken());
+  const [feedbackPageEnabled, setFeedbackPageEnabled] = useState(false);
   const user = useMemo<User | undefined>(
     () => (activeUser ? currentUserQuery(activeUser) : undefined),
     [activeUser, sessionVersion],
@@ -110,6 +116,25 @@ function App() {
     reloadFeatureFlags();
   }, [user]);
 
+  useEffect(() => {
+    if (!user) {
+      setFeedbackPageEnabled(false);
+      return;
+    }
+
+    const syncFeedbackFlag = () => {
+      setFeedbackPageEnabled(isFeatureEnabled(FEEDBACK_PAGE_FLAG));
+    };
+
+    syncFeedbackFlag();
+    const unsubscribe = onFeatureFlags(syncFeedbackFlag);
+    reloadFeatureFlags();
+
+    return () => {
+      unsubscribe();
+    };
+  }, [user]);
+
   async function handleLogout() {
     await logout();
     queryClient.clear();
@@ -148,6 +173,7 @@ function App() {
           element={
             <AppLayout
               user={user}
+              canAccessFeedback={feedbackPageEnabled}
               onLogout={handleLogout}
             />
           }
@@ -172,6 +198,16 @@ function App() {
           <Route path="attendance" element={<AttendancePage user={user} />} />
           <Route path="announcements" element={<AnnouncementsPage user={user} />} />
           <Route path="chat" element={<ChatPage user={user} />} />
+          <Route
+            path="feedback"
+            element={
+              feedbackPageEnabled ? (
+                <FeedbackPage />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
           <Route path="profile" element={<ProfilePage user={user} />} />
           <Route
             path="admin"

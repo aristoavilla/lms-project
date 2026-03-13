@@ -84,6 +84,14 @@ Frontend PostHog integration captures:
 - App logs (`app_log` events)
 - Feature flags via PostHog client-side flags (`isFeatureEnabled` / `getFeatureFlagPayload`)
 
+Feedback page phased rollout (PostHog feature flag):
+- Create a boolean feature flag with key: `feedback_page_access`
+- Release options in PostHog:
+  - Percentage rollout (for example, 5% → 25% → 100%)
+  - Targeted rollout by user properties (for example role/email/domain)
+- The frontend reads this flag and only shows/allows `/feedback` when the flag is enabled for the identified user
+- Ensure users are identified first (already handled in app login/session bootstrap) so targeting rules apply correctly
+
 Backend PostHog integration captures:
 - API request analytics (`api_request`)
 - Backend logs (`backend_log`)
