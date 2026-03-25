@@ -31,6 +31,7 @@ export function AttendancePage({ user }: Props) {
   const subjectName =
     (subjects.data ?? []).find((subject) => subject._id === user.subjectId)?.name ?? "Subject";
 
+  // Filter students in the selected class for subject attendance marking
   const selectedStudents = useMemo(
     () =>
       (users.data ?? []).filter(

@@ -2565,7 +2565,7 @@ async function queuePosthogEvent(env, event) {
     return;
   }
   try {
-    await env.LMS_QUEUE.send(event);
+    await env.LMS_QUEUE.send({ type: "posthog", ...event });
   } catch (error48) {
     console.error("Failed to enqueue PostHog event", error48);
   }
@@ -33092,8 +33092,17 @@ var eventSchema = external_exports.object({
 });
 var queueRoutes = new Hono2();
 queueRoutes.post("/events", zValidator("json", eventSchema), async (c) => {
+  const authHeader = c.req.header("authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  try {
+    await verifyAccessToken(c.env, authHeader.slice("Bearer ".length).trim());
+  } catch {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
   const payload = c.req.valid("json");
-  await c.env.LMS_QUEUE.send(payload);
+  await c.env.LMS_QUEUE.send({ type: "posthog", ...payload });
   return c.json({ queued: true });
 });
 
@@ -37293,7 +37302,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-3GVm5p/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-fyMHMy/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -37325,7 +37334,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-3GVm5p/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-fyMHMy/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

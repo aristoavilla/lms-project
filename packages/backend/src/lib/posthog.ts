@@ -33,7 +33,7 @@ export async function queuePosthogEvent(env: AppEnv, event: PosthogQueueEvent) {
   }
 
   try {
-    await env.LMS_QUEUE.send(event);
+    await env.LMS_QUEUE.send({ type: "posthog", ...event });
   } catch (error) {
     console.error("Failed to enqueue PostHog event", error);
   }

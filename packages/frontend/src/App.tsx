@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { BrowserRouter } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+
 import { AppLayout } from "./components/AppLayout";
 import { AnnouncementsPage } from "./pages/AnnouncementsPage";
 import { AssignmentsPage } from "./pages/AssignmentsPage";
@@ -15,6 +16,7 @@ import { RankingPage } from "./pages/RankingPage";
 import { SubmissionDetailPage } from "./pages/SubmissionDetailPage";
 import { SubjectDetailPage } from "./pages/SubjectDetailPage";
 import { SuperAdminPage } from "./pages/SuperAdminPage";
+
 import {
   currentUserQuery,
   getSessionUser,
@@ -23,6 +25,7 @@ import {
   restoreSessionUser,
   SESSION_USER_UPDATED_EVENT,
 } from "./services/lmsService";
+
 import {
   captureError,
   captureEvent,
@@ -32,6 +35,7 @@ import {
   reloadFeatureFlags,
   resetPosthogUser,
 } from "./services/posthog";
+
 import type { User } from "./types";
 import { canViewRanking, isSuperAdmin } from "./utils/rbac";
 import "./App.css";
@@ -59,7 +63,7 @@ function App() {
     return () => window.removeEventListener(SESSION_USER_UPDATED_EVENT, handleSessionUpdate);
   }, []);
 
-  useEffect(() => {
+  useEffect(() => { 
     if (activeUser) {
       setBootstrapping(false);
       return;
